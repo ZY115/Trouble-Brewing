@@ -1,0 +1,1178 @@
+[
+  {
+    "id": "10-0",
+    "count": 10,
+    "name": "基础配置",
+    "description": "信息角色较多；无男爵",
+    "setup": {
+      "roleIds": [
+        "washerwoman",
+        "chef",
+        "empath",
+        "fortuneteller",
+        "undertaker",
+        "monk",
+        "soldier",
+        "poisoner",
+        "scarletwoman",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["librarian", "investigator", "ravenkeeper"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "10-1",
+    "count": 10,
+    "name": "进阶配置",
+    "description": "增加白天能力，减少首夜信息角色",
+    "setup": {
+      "roleIds": [
+        "fortuneteller",
+        "undertaker",
+        "monk",
+        "soldier",
+        "virgin",
+        "slayer",
+        "ravenkeeper",
+        "poisoner",
+        "scarletwoman",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["washerwoman", "librarian", "investigator"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "10-2",
+    "count": 10,
+    "name": "男爵配置",
+    "description": "含男爵；外来者增加两人",
+    "setup": {
+      "roleIds": [
+        "washerwoman",
+        "chef",
+        "empath",
+        "fortuneteller",
+        "undertaker",
+        "recluse",
+        "saint",
+        "baron",
+        "poisoner",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["librarian", "investigator", "monk"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "11-0",
+    "count": 11,
+    "name": "基础配置",
+    "description": "信息角色较多；无男爵",
+    "setup": {
+      "roleIds": [
+        "washerwoman",
+        "chef",
+        "empath",
+        "fortuneteller",
+        "undertaker",
+        "monk",
+        "soldier",
+        "recluse",
+        "poisoner",
+        "scarletwoman",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["librarian", "investigator", "ravenkeeper"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "11-1",
+    "count": 11,
+    "name": "进阶配置",
+    "description": "含酒鬼；减少首夜信息角色",
+    "setup": {
+      "roleIds": [
+        "fortuneteller",
+        "undertaker",
+        "monk",
+        "soldier",
+        "virgin",
+        "slayer",
+        "ravenkeeper",
+        "drunk",
+        "poisoner",
+        "scarletwoman",
+        "imp"
+      ],
+      "drunkAs": "washerwoman",
+      "bluffs": ["librarian", "investigator", "chef"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "11-2",
+    "count": 11,
+    "name": "男爵配置",
+    "description": "含男爵；外来者增加两人",
+    "setup": {
+      "roleIds": [
+        "washerwoman",
+        "chef",
+        "empath",
+        "fortuneteller",
+        "undertaker",
+        "recluse",
+        "saint",
+        "butler",
+        "baron",
+        "poisoner",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["librarian", "investigator", "monk"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "12-0",
+    "count": 12,
+    "name": "基础配置",
+    "description": "信息角色较多；无男爵",
+    "setup": {
+      "roleIds": [
+        "washerwoman",
+        "chef",
+        "empath",
+        "fortuneteller",
+        "undertaker",
+        "monk",
+        "soldier",
+        "recluse",
+        "saint",
+        "poisoner",
+        "scarletwoman",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["librarian", "investigator", "ravenkeeper"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "12-1",
+    "count": 12,
+    "name": "进阶配置",
+    "description": "含酒鬼；减少首夜信息角色",
+    "setup": {
+      "roleIds": [
+        "fortuneteller",
+        "undertaker",
+        "monk",
+        "soldier",
+        "virgin",
+        "slayer",
+        "ravenkeeper",
+        "drunk",
+        "recluse",
+        "poisoner",
+        "scarletwoman",
+        "imp"
+      ],
+      "drunkAs": "washerwoman",
+      "bluffs": ["librarian", "investigator", "chef"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "12-2",
+    "count": 12,
+    "name": "男爵配置",
+    "description": "含男爵；外来者增加两人",
+    "setup": {
+      "roleIds": [
+        "washerwoman",
+        "chef",
+        "empath",
+        "fortuneteller",
+        "undertaker",
+        "recluse",
+        "saint",
+        "butler",
+        "drunk",
+        "baron",
+        "poisoner",
+        "imp"
+      ],
+      "drunkAs": "monk",
+      "bluffs": ["librarian", "investigator", "ravenkeeper"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "13-0",
+    "count": 13,
+    "name": "基础配置",
+    "description": "信息角色较多；无男爵",
+    "setup": {
+      "roleIds": [
+        "washerwoman",
+        "chef",
+        "empath",
+        "fortuneteller",
+        "undertaker",
+        "monk",
+        "soldier",
+        "virgin",
+        "slayer",
+        "poisoner",
+        "scarletwoman",
+        "spy",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["librarian", "investigator", "ravenkeeper"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "13-1",
+    "count": 13,
+    "name": "进阶配置",
+    "description": "增加白天能力，减少首夜信息角色",
+    "setup": {
+      "roleIds": [
+        "fortuneteller",
+        "undertaker",
+        "monk",
+        "soldier",
+        "virgin",
+        "slayer",
+        "ravenkeeper",
+        "mayor",
+        "librarian",
+        "poisoner",
+        "scarletwoman",
+        "spy",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["washerwoman", "investigator", "chef"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "13-2",
+    "count": 13,
+    "name": "男爵配置",
+    "description": "含男爵；外来者增加两人",
+    "setup": {
+      "roleIds": [
+        "washerwoman",
+        "chef",
+        "empath",
+        "fortuneteller",
+        "undertaker",
+        "monk",
+        "soldier",
+        "recluse",
+        "saint",
+        "baron",
+        "poisoner",
+        "scarletwoman",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["librarian", "investigator", "ravenkeeper"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "10-3",
+    "count": 10,
+    "name": "变化配置 1",
+    "description": "含男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "fortuneteller",
+        "slayer",
+        "ravenkeeper",
+        "empath",
+        "washerwoman",
+        "saint",
+        "butler",
+        "poisoner",
+        "baron",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["undertaker", "soldier", "chef"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "10-4",
+    "count": 10,
+    "name": "变化配置 2",
+    "description": "含男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "empath",
+        "librarian",
+        "investigator",
+        "washerwoman",
+        "chef",
+        "butler",
+        "drunk",
+        "baron",
+        "spy",
+        "imp"
+      ],
+      "drunkAs": "ravenkeeper",
+      "bluffs": ["recluse", "soldier", "monk"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "10-5",
+    "count": 10,
+    "name": "变化配置 3",
+    "description": "无男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "slayer",
+        "fortuneteller",
+        "investigator",
+        "ravenkeeper",
+        "soldier",
+        "undertaker",
+        "librarian",
+        "spy",
+        "scarletwoman",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["butler", "empath", "washerwoman"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "10-6",
+    "count": 10,
+    "name": "变化配置 4",
+    "description": "含男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "slayer",
+        "fortuneteller",
+        "monk",
+        "washerwoman",
+        "ravenkeeper",
+        "saint",
+        "butler",
+        "poisoner",
+        "baron",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["soldier", "virgin", "librarian"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "10-7",
+    "count": 10,
+    "name": "变化配置 5",
+    "description": "无男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "washerwoman",
+        "slayer",
+        "soldier",
+        "monk",
+        "chef",
+        "ravenkeeper",
+        "fortuneteller",
+        "scarletwoman",
+        "spy",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["butler", "investigator", "drunk"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "10-8",
+    "count": 10,
+    "name": "变化配置 6",
+    "description": "含男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "fortuneteller",
+        "monk",
+        "washerwoman",
+        "ravenkeeper",
+        "soldier",
+        "recluse",
+        "saint",
+        "baron",
+        "scarletwoman",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["chef", "butler", "undertaker"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "10-9",
+    "count": 10,
+    "name": "变化配置 7",
+    "description": "无男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "slayer",
+        "monk",
+        "empath",
+        "mayor",
+        "ravenkeeper",
+        "virgin",
+        "soldier",
+        "scarletwoman",
+        "poisoner",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["washerwoman", "saint", "recluse"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "10-10",
+    "count": 10,
+    "name": "变化配置 8",
+    "description": "无男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "chef",
+        "monk",
+        "soldier",
+        "empath",
+        "washerwoman",
+        "ravenkeeper",
+        "slayer",
+        "scarletwoman",
+        "spy",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["librarian", "undertaker", "virgin"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "10-11",
+    "count": 10,
+    "name": "变化配置 9",
+    "description": "无男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "fortuneteller",
+        "soldier",
+        "virgin",
+        "washerwoman",
+        "monk",
+        "mayor",
+        "ravenkeeper",
+        "scarletwoman",
+        "poisoner",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["drunk", "slayer", "butler"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "11-3",
+    "count": 11,
+    "name": "变化配置 1",
+    "description": "含男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "librarian",
+        "chef",
+        "fortuneteller",
+        "virgin",
+        "investigator",
+        "butler",
+        "drunk",
+        "recluse",
+        "scarletwoman",
+        "baron",
+        "imp"
+      ],
+      "drunkAs": "monk",
+      "bluffs": ["ravenkeeper", "saint", "empath"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "11-4",
+    "count": 11,
+    "name": "变化配置 2",
+    "description": "含男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "chef",
+        "mayor",
+        "soldier",
+        "librarian",
+        "monk",
+        "butler",
+        "drunk",
+        "saint",
+        "baron",
+        "poisoner",
+        "imp"
+      ],
+      "drunkAs": "ravenkeeper",
+      "bluffs": ["slayer", "washerwoman", "empath"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "11-5",
+    "count": 11,
+    "name": "变化配置 3",
+    "description": "无男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "fortuneteller",
+        "slayer",
+        "mayor",
+        "chef",
+        "librarian",
+        "virgin",
+        "monk",
+        "recluse",
+        "scarletwoman",
+        "spy",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["butler", "investigator", "ravenkeeper"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "11-6",
+    "count": 11,
+    "name": "变化配置 4",
+    "description": "无男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "washerwoman",
+        "chef",
+        "undertaker",
+        "mayor",
+        "slayer",
+        "investigator",
+        "fortuneteller",
+        "drunk",
+        "spy",
+        "poisoner",
+        "imp"
+      ],
+      "drunkAs": "librarian",
+      "bluffs": ["butler", "empath", "virgin"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "11-7",
+    "count": 11,
+    "name": "变化配置 5",
+    "description": "含男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "soldier",
+        "empath",
+        "mayor",
+        "washerwoman",
+        "fortuneteller",
+        "butler",
+        "recluse",
+        "saint",
+        "poisoner",
+        "baron",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["drunk", "monk", "investigator"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "11-8",
+    "count": 11,
+    "name": "变化配置 6",
+    "description": "含男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "ravenkeeper",
+        "virgin",
+        "soldier",
+        "fortuneteller",
+        "mayor",
+        "drunk",
+        "saint",
+        "butler",
+        "poisoner",
+        "baron",
+        "imp"
+      ],
+      "drunkAs": "undertaker",
+      "bluffs": ["monk", "recluse", "empath"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "11-9",
+    "count": 11,
+    "name": "变化配置 7",
+    "description": "无男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "washerwoman",
+        "soldier",
+        "mayor",
+        "investigator",
+        "monk",
+        "fortuneteller",
+        "undertaker",
+        "saint",
+        "scarletwoman",
+        "poisoner",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["virgin", "librarian", "slayer"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "11-10",
+    "count": 11,
+    "name": "变化配置 8",
+    "description": "含男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "virgin",
+        "monk",
+        "soldier",
+        "undertaker",
+        "ravenkeeper",
+        "saint",
+        "butler",
+        "recluse",
+        "poisoner",
+        "baron",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["empath", "investigator", "librarian"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "11-11",
+    "count": 11,
+    "name": "变化配置 9",
+    "description": "无男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "investigator",
+        "librarian",
+        "undertaker",
+        "virgin",
+        "mayor",
+        "ravenkeeper",
+        "chef",
+        "drunk",
+        "scarletwoman",
+        "spy",
+        "imp"
+      ],
+      "drunkAs": "slayer",
+      "bluffs": ["fortuneteller", "monk", "empath"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "12-3",
+    "count": 12,
+    "name": "变化配置 1",
+    "description": "含男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "soldier",
+        "mayor",
+        "slayer",
+        "undertaker",
+        "fortuneteller",
+        "saint",
+        "drunk",
+        "butler",
+        "recluse",
+        "poisoner",
+        "baron",
+        "imp"
+      ],
+      "drunkAs": "librarian",
+      "bluffs": ["ravenkeeper", "monk", "virgin"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "12-4",
+    "count": 12,
+    "name": "变化配置 2",
+    "description": "含男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "monk",
+        "empath",
+        "ravenkeeper",
+        "slayer",
+        "librarian",
+        "drunk",
+        "butler",
+        "saint",
+        "recluse",
+        "baron",
+        "poisoner",
+        "imp"
+      ],
+      "drunkAs": "undertaker",
+      "bluffs": ["chef", "mayor", "soldier"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "12-5",
+    "count": 12,
+    "name": "变化配置 3",
+    "description": "无男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "undertaker",
+        "washerwoman",
+        "empath",
+        "mayor",
+        "librarian",
+        "investigator",
+        "chef",
+        "drunk",
+        "recluse",
+        "spy",
+        "scarletwoman",
+        "imp"
+      ],
+      "drunkAs": "monk",
+      "bluffs": ["saint", "soldier", "fortuneteller"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "12-6",
+    "count": 12,
+    "name": "变化配置 4",
+    "description": "无男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "investigator",
+        "fortuneteller",
+        "soldier",
+        "virgin",
+        "empath",
+        "washerwoman",
+        "librarian",
+        "drunk",
+        "butler",
+        "scarletwoman",
+        "poisoner",
+        "imp"
+      ],
+      "drunkAs": "ravenkeeper",
+      "bluffs": ["recluse", "mayor", "saint"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "12-7",
+    "count": 12,
+    "name": "变化配置 5",
+    "description": "无男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "slayer",
+        "chef",
+        "empath",
+        "librarian",
+        "virgin",
+        "soldier",
+        "undertaker",
+        "drunk",
+        "butler",
+        "poisoner",
+        "spy",
+        "imp"
+      ],
+      "drunkAs": "fortuneteller",
+      "bluffs": ["mayor", "ravenkeeper", "recluse"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "12-8",
+    "count": 12,
+    "name": "变化配置 6",
+    "description": "无男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "soldier",
+        "mayor",
+        "virgin",
+        "washerwoman",
+        "fortuneteller",
+        "undertaker",
+        "slayer",
+        "butler",
+        "recluse",
+        "poisoner",
+        "spy",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["monk", "chef", "empath"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "12-9",
+    "count": 12,
+    "name": "变化配置 7",
+    "description": "无男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "virgin",
+        "librarian",
+        "soldier",
+        "undertaker",
+        "washerwoman",
+        "chef",
+        "monk",
+        "butler",
+        "recluse",
+        "scarletwoman",
+        "poisoner",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["saint", "fortuneteller", "mayor"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "12-10",
+    "count": 12,
+    "name": "变化配置 8",
+    "description": "无男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "empath",
+        "washerwoman",
+        "slayer",
+        "ravenkeeper",
+        "virgin",
+        "monk",
+        "soldier",
+        "drunk",
+        "butler",
+        "scarletwoman",
+        "poisoner",
+        "imp"
+      ],
+      "drunkAs": "librarian",
+      "bluffs": ["recluse", "mayor", "chef"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "12-11",
+    "count": 12,
+    "name": "变化配置 9",
+    "description": "无男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "mayor",
+        "librarian",
+        "investigator",
+        "monk",
+        "chef",
+        "soldier",
+        "ravenkeeper",
+        "recluse",
+        "drunk",
+        "poisoner",
+        "spy",
+        "imp"
+      ],
+      "drunkAs": "virgin",
+      "bluffs": ["washerwoman", "undertaker", "saint"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "13-3",
+    "count": 13,
+    "name": "变化配置 1",
+    "description": "含男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "undertaker",
+        "monk",
+        "ravenkeeper",
+        "fortuneteller",
+        "washerwoman",
+        "investigator",
+        "librarian",
+        "recluse",
+        "butler",
+        "poisoner",
+        "spy",
+        "baron",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["slayer", "soldier", "empath"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "13-4",
+    "count": 13,
+    "name": "变化配置 2",
+    "description": "含男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "virgin",
+        "undertaker",
+        "monk",
+        "investigator",
+        "empath",
+        "washerwoman",
+        "soldier",
+        "butler",
+        "saint",
+        "baron",
+        "spy",
+        "scarletwoman",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["mayor", "librarian", "recluse"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "13-5",
+    "count": 13,
+    "name": "变化配置 3",
+    "description": "含男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "investigator",
+        "undertaker",
+        "slayer",
+        "fortuneteller",
+        "soldier",
+        "mayor",
+        "empath",
+        "recluse",
+        "butler",
+        "baron",
+        "scarletwoman",
+        "poisoner",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["ravenkeeper", "saint", "washerwoman"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "13-6",
+    "count": 13,
+    "name": "变化配置 4",
+    "description": "无男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "mayor",
+        "slayer",
+        "fortuneteller",
+        "monk",
+        "empath",
+        "ravenkeeper",
+        "virgin",
+        "washerwoman",
+        "soldier",
+        "scarletwoman",
+        "spy",
+        "poisoner",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["drunk", "recluse", "librarian"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "13-7",
+    "count": 13,
+    "name": "变化配置 5",
+    "description": "含男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "chef",
+        "mayor",
+        "librarian",
+        "virgin",
+        "investigator",
+        "undertaker",
+        "slayer",
+        "saint",
+        "drunk",
+        "spy",
+        "baron",
+        "scarletwoman",
+        "imp"
+      ],
+      "drunkAs": "fortuneteller",
+      "bluffs": ["recluse", "butler", "monk"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "13-8",
+    "count": 13,
+    "name": "变化配置 6",
+    "description": "含男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "undertaker",
+        "ravenkeeper",
+        "fortuneteller",
+        "virgin",
+        "slayer",
+        "librarian",
+        "soldier",
+        "recluse",
+        "butler",
+        "baron",
+        "poisoner",
+        "spy",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["investigator", "mayor", "drunk"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "13-9",
+    "count": 13,
+    "name": "变化配置 7",
+    "description": "含男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "mayor",
+        "investigator",
+        "monk",
+        "fortuneteller",
+        "ravenkeeper",
+        "undertaker",
+        "virgin",
+        "recluse",
+        "saint",
+        "baron",
+        "poisoner",
+        "spy",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["drunk", "soldier", "slayer"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "13-10",
+    "count": 13,
+    "name": "变化配置 8",
+    "description": "含男爵 · 含酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "investigator",
+        "soldier",
+        "virgin",
+        "slayer",
+        "empath",
+        "washerwoman",
+        "librarian",
+        "drunk",
+        "recluse",
+        "scarletwoman",
+        "poisoner",
+        "baron",
+        "imp"
+      ],
+      "drunkAs": "mayor",
+      "bluffs": ["chef", "fortuneteller", "saint"],
+      "overrideReason": ""
+    }
+  },
+  {
+    "id": "13-11",
+    "count": 13,
+    "name": "变化配置 9",
+    "description": "无男爵 · 无酒鬼；可继续修改",
+    "setup": {
+      "roleIds": [
+        "mayor",
+        "washerwoman",
+        "chef",
+        "virgin",
+        "soldier",
+        "undertaker",
+        "investigator",
+        "librarian",
+        "monk",
+        "scarletwoman",
+        "poisoner",
+        "spy",
+        "imp"
+      ],
+      "drunkAs": "",
+      "bluffs": ["recluse", "saint", "slayer"],
+      "overrideReason": ""
+    }
+  }
+]

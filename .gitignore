@@ -1,0 +1,28 @@
+# Dependencies and generated output
+node_modules/
+dist/
+dist-server/
+release/
+coverage/
+*.tsbuildinfo
+
+# Local game data and credentials
+/data/*
+!/data/.gitkeep
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+.env
+.env.*
+!.env.example
+clocktower-host-*.json
+
+# Local references, reports and machine files
+/upstream/
+/docs/qa/
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

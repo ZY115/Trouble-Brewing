@@ -1,0 +1,27 @@
+{
+  "source": "https://github.com/bjageman/tiny-grimoire/blob/ba2be90df4bd97e6f9457f18bb9c306e4fe62589/src/nightsheet.json",
+  "license": "../../src/vendor/LICENSE.tiny-grimoire",
+  "firstNight": [
+    "poisoner",
+    "washerwoman",
+    "librarian",
+    "investigator",
+    "chef",
+    "empath",
+    "fortuneteller",
+    "butler",
+    "spy"
+  ],
+  "otherNight": [
+    "poisoner",
+    "monk",
+    "scarletwoman",
+    "imp",
+    "ravenkeeper",
+    "empath",
+    "fortuneteller",
+    "undertaker",
+    "butler",
+    "spy"
+  ]
+}
