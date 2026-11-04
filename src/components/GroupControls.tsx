@@ -1,14 +1,17 @@
 import { useState } from "react";
 import type { RoomView } from "../../shared/types";
 import type { Send } from "../useRoom";
+/** One part at a time: pending invitations, the new-group form, or the open group. */
 export default function GroupControls({
   room,
   send,
   selected,
+  part,
 }: {
   room: RoomView;
   send: Send;
   selected: string;
+  part: "invites" | "create" | "group";
 }) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("小组聊天");
@@ -30,9 +33,11 @@ export default function GroupControls({
     return ok;
   }
   if (room.storyteller) return null;
+  if (part === "group" && !group) return null;
+  if (part === "invites" && !pending.length) return null;
   return (
-    <section className="panel group-controls">
-      {pending.map((i) => (
+    <section className="group-controls">
+      {part === "invites" && pending.map((i) => (
         <div className="invitation-row" key={i.id} role="status">
           <span>
             {seatName(i.from)} 邀请你加入「{i.groupName}」
@@ -63,10 +68,12 @@ export default function GroupControls({
           </button>
         </div>
       ))}
-      <button disabled={ended} onClick={() => setCreating(!creating)}>
-        {creating ? "收起建群" : "新建群聊"}
-      </button>
-      {creating && (
+      {part === "create" && (
+        <button className="group-new" disabled={ended} onClick={() => setCreating(!creating)}>
+          {creating ? "收起" : "新建群聊"}
+        </button>
+      )}
+      {part === "create" && creating && (
         <form
           className="group-form"
           onSubmit={async (e) => {
@@ -117,7 +124,7 @@ export default function GroupControls({
           </button>
         </form>
       )}
-      {group && (
+      {part === "group" && group && (
         <div className="group-members">
           <p>成员：{Object.keys(group.members).map(seatName).join("、")}</p>
           <div className="inline-form">

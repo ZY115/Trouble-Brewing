@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RoomView } from "../../shared/types";
 import type { Send } from "../useRoom";
 import { localKey, useLocalState, useUnread } from "../localState";
+import { clock, threadWith } from "./chat";
 
 /** The workbench and full chat use the same conversation and draft keys. */
 export default function Conversation({
@@ -9,23 +10,22 @@ export default function Conversation({
   send,
   recipient,
   compact = false,
+  bare = false,
 }: {
   room: RoomView;
   send: Send;
   recipient: string;
   compact?: boolean;
+  /** The surrounding sheet already names the contact. */
+  bare?: boolean;
 }) {
   const me = room.viewer.seatId ?? "storyteller";
   const name = (id: string) =>
     id === "storyteller"
       ? "说书人"
       : `${room.seats.find((s) => s.id === id)?.number ?? "?"} 号`;
-  const messages = room.messages.filter((m) =>
-    recipient === "evil" || recipient.startsWith("group:")
-      ? m.to === recipient
-      : (m.from === me && m.to === recipient) ||
-        (m.from === recipient && m.to === me),
-  );
+  const channel = recipient === "evil" || recipient.startsWith("group:");
+  const messages = threadWith(room, recipient);
   const title =
     recipient === "evil"
       ? "邪恶队友频道"
@@ -73,12 +73,14 @@ export default function Conversation({
       className={`conversation ${compact ? "compact-conversation" : ""}`}
       aria-label={`与${title}的私聊`}
     >
-      <div className="conversation-header">
-        {compact ? "私聊" : title}
-        {unread.contactCount(recipient) > 0 && (
-          <span className="nav-count">{unread.contactCount(recipient)}</span>
-        )}
-      </div>
+      {!bare && (
+        <div className="conversation-header">
+          {compact ? "私聊" : title}
+          {unread.contactCount(recipient) > 0 && (
+            <span className="nav-count">{unread.contactCount(recipient)}</span>
+          )}
+        </div>
+      )}
       <div
         className="messages"
         ref={container}
@@ -97,17 +99,14 @@ export default function Conversation({
               className={`message ${m.from === me ? "mine" : ""}`}
             >
               <small>
-                {name(m.from)} ·{" "}
-                {new Date(m.createdAt).toLocaleTimeString("zh-CN", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {channel && m.from !== me ? `${name(m.from)} · ` : ""}
+                {clock(m.createdAt)}
               </small>
               <p>{m.content}</p>
             </div>
           ))
         ) : (
-          <p className="muted">暂无私聊</p>
+          <p className="muted messages-empty">还没有消息</p>
         )}
       </div>
       <form
@@ -127,7 +126,7 @@ export default function Conversation({
           maxLength={2000}
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="单独确认或补充说明"
+          placeholder={compact ? "单独确认或补充说明" : `发给 ${title}`}
         />
         <button
           className="primary"

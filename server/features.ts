@@ -1,8 +1,7 @@
 import { refreshDeadVotes, voteActive } from "./voting";
 import { randomUUID } from "node:crypto";
 import type { Command } from "../shared/commands";
-import { validClaimInfo } from "../shared/claims";
-import { roleById } from "../shared/roles";
+import { notebookCommand } from "./notebook";
 import { publicRecord } from "./public-records";
 import type { Room } from "./game";
 function check(value: unknown, error: string): asserts value {
@@ -99,59 +98,11 @@ export function featureCommand(
       }
       return "退出群聊";
     }
-    case "save_notebook": {
+    case "save_notebook":
+    case "add_note":
+    case "edit_notebook":
       player();
-      check(c.day <= Math.max(1, r.day), "不能记录尚未到来的日期");
-      check(
-        c.kind === "claim"
-          ? !!roleById(c.roleId) &&
-              !!seat(c.target) &&
-              validClaimInfo(
-                c.roleId,
-                c.info,
-                r.seats.map((s) => s.id),
-              )
-          : !!c.body &&
-              c.roleId === "" &&
-              c.target === "" &&
-              Object.keys(c.info).length === 0,
-        "笔记内容与所标注身份不一致",
-      );
-      const entries = (r.notebooks[actor] ??= []);
-      let entry = c.entryId
-        ? entries.find((e) => e.id === c.entryId)
-        : undefined;
-      check(!c.entryId || entry, "笔记不存在");
-      check(
-        (entry?.revisions.length ?? 0) === c.expectedVersion,
-        "这条笔记已在其他页面修改，请重新打开后编辑",
-      );
-      check(
-        !entry || (entry.kind === c.kind && entry.target === c.target),
-        "不能改变笔记的对象，请新建一条",
-      );
-      if (!entry) {
-        entry = {
-          id: randomUUID(),
-          kind: c.kind,
-          target: c.target,
-          revisions: [],
-        };
-        entries.push(entry);
-      }
-      entry.revisions.push({
-        seatNumbers: Object.fromEntries(r.seats.map((s) => [s.id, s.number])),
-        version: c.expectedVersion + 1,
-        day: c.day,
-        period: c.period,
-        roleId: c.roleId,
-        source: c.source,
-        body: c.body,
-        info: c.info,
-        savedAt: new Date().toISOString(),
-      });
-      return "保存私人笔记版本";
-    }
+      return notebookCommand(r, actor, c);
     case "request_seat": {
       player();
       const me = seat(actor);
@@ -203,6 +154,8 @@ export function featureCommand(
       me.number = q.number;
       me.nickname = `${me.number} 号`;
       q.status = "accepted";
+      r.contextVersion++;
+      if (r.roundSetup?.mode === "host") r.roundSetup.seatingConfirmed = false;
       for (const pending of r.seatRequests.filter(
         (q) => q.status === "pending",
       )) {
@@ -212,21 +165,67 @@ export function featureCommand(
       }
       return "已交换号码，其他号码保持不变";
     }
+    case "set_seating": {
+      host();
+      check(
+        r.phase === "SETUP" &&
+          !r.registrationOpen &&
+          r.roundSetup?.mode === "host",
+        "请在说书人换座模式下暂停入场后修改号码",
+      );
+      check(
+        c.expectedContextVersion === r.contextVersion,
+        "座位表已变化，请重新载入后修改",
+      );
+      check(
+        c.seats.length === r.seats.length &&
+          new Set(c.seats.map((s) => s.seatId)).size === r.seats.length &&
+          c.seats.every((s) =>
+            r.seats.some((existing) => existing.id === s.seatId),
+          ),
+        "请提交所有在座玩家，每人只能出现一次",
+      );
+      check(
+        new Set(c.seats.map((s) => s.number)).size === c.seats.length &&
+          c.seats.every((s) => s.number <= r.capacity),
+        "号码不能重复或超出本局人数",
+      );
+      for (const change of c.seats) {
+        const player = seat(change.seatId);
+        player.number = change.number;
+        player.nickname = `${change.number} 号`;
+      }
+      r.seatRequests
+        .filter((q) => q.status === "pending")
+        .forEach((q) => (q.status = "cancelled"));
+      r.roundSetup!.seatingConfirmed = true;
+      r.contextVersion++;
+      return "说书人统一确认新一局座位表";
+    }
     case "new_round": {
       host();
       check(r.phase === "ENDED", "请先结束本局");
       r.archives.push({
+        recap: r.recap,
         gameNo: r.gameNo,
         notebooks: r.notebooks,
         publicRecords: r.publicRecords,
         seats: r.seats.map((s) => ({ ...s, alive: r.publishedAlive[s.id] })),
       });
+      r.initialAssignments = undefined;
+      r.recapLog = [];
+      r.recapEdits = [];
+      r.recapVersion = 0;
+      r.result = undefined;
+      r.recap = undefined;
+      r.dayEndVictory = undefined;
       r.deathEvents = [];
       r.dismissedNotices = [];
       r.staleConditions = [];
       r.evilInfoSent = false;
       r.recoveryTickets = {};
       r.gameNo++;
+      r.playId = undefined;
       r.phaseVersion++;
       r.nightPlan = [];
       r.planVersion++;
@@ -256,7 +255,28 @@ export function featureCommand(
         s.deadVoteAvailable = true;
       });
       r.seatRequests = r.seatRequests.filter((q) => q.status === "pending");
-      return "准备新一局，保留座位，等待确认配板";
+      r.roundSetup = {
+        mode: c.seatMode ?? "keep",
+        seatingConfirmed: c.seatMode !== "host",
+      };
+      // An explicit choice supersedes earlier change requests. Legacy clients
+      // keep their existing request/approval workflow when omitting seatMode.
+      if (c.seatMode) r.seatRequests = [];
+      if (c.seatMode === "rescan") {
+        r.seats = [];
+        r.publishedAlive = {};
+        r.debugSeatIds = [];
+        r.sessions = Object.fromEntries(
+          Object.entries(r.sessions).filter(
+            ([, identity]) => identity.kind === "storyteller",
+          ),
+        );
+      }
+      return c.seatMode === "rescan"
+        ? "准备新一局，等待玩家重新扫码登记"
+        : c.seatMode === "host"
+          ? "准备新一局，等待说书人确认座位表"
+          : "准备新一局，保留座位，等待确认配板";
     }
     case "record_vote": {
       host();

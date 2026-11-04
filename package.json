@@ -10,6 +10,7 @@
     "dev": "concurrently -k -n server,web \"tsx watch server/index.ts\" \"vite --host 0.0.0.0\"",
     "build": "tsc --noEmit && vite build && vite build --ssr server/index.ts --outDir dist-server",
     "start": "node dist-server/index.js",
+    "debug": "node scripts/debug.mjs",
     "package:local": "npm run build && node scripts/package-local.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

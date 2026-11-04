@@ -12,6 +12,63 @@ const setup = z
 export const commandSchema = z.discriminatedUnion("type", [
   z
     .object({
+      type: z.literal("finish_game"),
+      mode: z.enum(["normal", "early"]),
+      winner: z.enum(["good", "evil", "none"]),
+      reason: z.string().trim().max(1000).default(""),
+      endDay: z.boolean().default(false),
+      confirmed: z.literal(true),
+      expectedReviewKey: z.string().min(1).max(100),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("edit_recap"),
+      entryId: id.optional(),
+      expectedVersion: z.number().int().min(0),
+      day: z.number().int().min(1),
+      period: z.enum(["DAY", "NIGHT"]),
+      text: z.string().trim().min(1).max(2000),
+      hidden: z.boolean().default(false),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("add_note"),
+      target: z.string().max(100).optional(),
+      roleId: z.string().max(50).optional(),
+      source: z.enum(["claimed", "suspected"]).optional(),
+      body: z.string().trim().max(4000).optional(),
+      info: z.record(z.string().max(50), z.string().max(200)).optional(),
+      day: z.number().int().min(1).optional(),
+      period: z.enum(["DAY", "NIGHT"]).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("edit_notebook"),
+      entryId: id,
+      expectedVersion: z.number().int().min(1),
+      patch: z
+        .object({
+          roleId: z.string().max(50).optional(),
+          source: z.enum(["claimed", "suspected"]).optional(),
+          body: z.string().trim().max(4000).optional(),
+          info: z.record(z.string().max(50), z.string().max(200)).optional(),
+          day: z.number().int().min(1).optional(),
+          period: z.enum(["DAY", "NIGHT"]).optional(),
+          archived: z.boolean().optional(),
+        })
+        .strict()
+        .refine(
+          (patch) => Object.values(patch).some((value) => value !== undefined),
+          "修改内容不能为空",
+        ),
+    })
+    .strict(),
+  z.object({ type: z.literal("debug_fill"), start: z.boolean() }).strict(),
+  z
+    .object({
       type: z.literal("apply_action"),
       actionId: id,
       effect: z.enum(["poison", "protect", "kill", "none"]),
@@ -245,7 +302,25 @@ export const commandSchema = z.discriminatedUnion("type", [
       expectedVersion: z.number().int().min(0),
     })
     .strict(),
-  z.object({ type: z.literal("new_round") }).strict(),
+  z
+    .object({
+      type: z.literal("new_round"),
+      seatMode: z.enum(["keep", "host", "rescan"]).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("set_seating"),
+      seats: z
+        .array(
+          z
+            .object({ seatId: id, number: z.number().int().min(1).max(13) })
+            .strict(),
+        )
+        .max(13),
+      expectedContextVersion: z.number().int().min(0),
+    })
+    .strict(),
   z
     .object({
       type: z.literal("create_group"),

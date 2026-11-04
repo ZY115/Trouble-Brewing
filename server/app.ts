@@ -6,12 +6,14 @@ import { Server } from "socket.io";
 import { z } from "zod";
 import { envelopeSchema } from "../shared/commands";
 import { Store } from "./store";
+import { notebookCommands } from "../shared/assistance";
 import { GameService } from "./game";
 export function createApp(
   database = process.env.DB_PATH ?? "data/clocktower.sqlite",
+  options: { debug?: boolean } = {},
 ) {
   const store = new Store(database);
-  const game = new GameService(store);
+  const game = new GameService(store, options.debug === true);
   const app = express();
   app.disable("x-powered-by");
   app.use(express.json({ limit: "24kb" }));
@@ -63,17 +65,33 @@ export function createApp(
   );
   app.get("/api/network", (_req, res) =>
     res.json({
-      addresses: Object.values(networkInterfaces())
-        .flatMap((items) => items ?? [])
-        .filter(
-          (a) =>
-            a.family === "IPv4" &&
-            !a.internal &&
-            /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a.address),
-        )
-        .map((a) => a.address),
+      addresses: options.debug
+        ? []
+        : Object.values(networkInterfaces())
+            .flatMap((items) => items ?? [])
+            .filter(
+              (a) =>
+                a.family === "IPv4" &&
+                !a.internal &&
+                /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a.address),
+            )
+            .map((a) => a.address),
     }),
   );
+  if (options.debug) {
+    app.post("/api/rooms/:code/debug/player", (req, res, next) => {
+      try {
+        const c = auth.parse(credentials(req));
+        const body = z
+          .object({ seatId: z.string().min(1).max(100) })
+          .strict()
+          .parse(req.body);
+        res.json(game.debugPlayerSession(c.code, c.token, body.seatId));
+      } catch (error) {
+        next(error);
+      }
+    });
+  }
   app.post("/api/host/rooms", (req, res, next) => {
     try {
       const body = z
@@ -107,10 +125,15 @@ export function createApp(
       const body = z
         .object({
           number: z.number().int().min(1).max(13),
+          gameNo: z.number().int().min(1).optional(),
         })
         .strict()
         .parse(req.body);
-      const session = game.join(req.params.code.toUpperCase(), body.number);
+      const session = game.join(
+        req.params.code.toUpperCase(),
+        body.number,
+        body.gameNo,
+      );
       broadcast(session.code);
       res.status(201).json(session);
     } catch (e) {
@@ -180,7 +203,7 @@ export function createApp(
         if (++count > 50) throw new Error("操作过于频繁，请稍后重试");
         const body = envelopeSchema.parse(input);
         game.execute(code, token, body.commandId, body.command, body.gameNo);
-        if (["save_note", "save_notebook"].includes(body.command.type)) {
+        if (notebookCommands.has(body.command.type)) {
           for (const connected of io.sockets.sockets.values())
             if (
               connected.data.auth?.code === code &&

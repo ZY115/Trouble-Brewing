@@ -1,8 +1,103 @@
+# 暗流涌动助手
+
+用于《血染钟楼：暗流涌动》线下对局。电脑运行服务，说书人和玩家通过浏览器使用，无需安装手机 App。
+
+## 准备
+
+安装 Node.js 24（包含 npm）和 Git。以下命令在项目文件夹内执行；首次使用先克隆仓库。
+
+## macOS 启动
+
+打开终端：
+
 ```bash
+git clone https://github.com/ZY115/Trouble-Brewing.git
 cd Trouble-Brewing
 npm ci
 npm run build
 npm start
 ```
 
-打开 http://localhost:3001/host
+打开 [说书人入口](http://localhost:3001/host)。之后未修改代码时，只需在项目目录执行 `npm start`。
+
+也可以双击 `启动说书人.command`，它会检查依赖、构建并启动服务。若没有执行权限：
+
+```bash
+chmod +x 启动说书人.command
+./启动说书人.command
+```
+
+## Windows 启动
+
+打开 PowerShell：
+
+```powershell
+git clone https://github.com/ZY115/Trouble-Brewing.git
+cd Trouble-Brewing
+npm.cmd ci
+npm.cmd run build
+npm.cmd start
+```
+
+打开 [说书人入口](http://localhost:3001/host)。之后未修改代码时，只需在项目目录执行 `npm.cmd start`。
+
+也可以双击 `启动说书人.bat`，它会检查依赖、构建并启动服务，然后按窗口提示打开浏览器。PowerShell 示例使用 `npm.cmd`，无需修改脚本执行策略。
+
+## 使用
+
+1. 保持运行服务的电脑开机、终端开启，电脑、平板和玩家手机连接同一局域网。
+2. 说书人在电脑打开 `/host`。若用自己的平板，打开启动终端显示的 `LAN` 地址并加上 `/host`，例如 `http://192.168.1.10:3001/host`，在平板上创建房间。
+3. 选择人数、配置角色，点击“确认配板并开放入场”。可全屏展示二维码，扫码时不显示身份信息。
+4. 玩家扫码填写座位号。所有人登记完成且号码互不重复后，系统统一发放身份。
+5. 说书人按夜序处理行动和回复，控制天亮、提名、投票与结束游戏。系统提供提示，最终裁定由说书人决定。玩家可查看身份、提交行动、私聊和记笔记。
+6. 正常结束后查看本局总结；“再来一局”可保持号码或重新安排座位。
+
+手机无法连接时，检查二维码地址是否为电脑的局域网地址、设备是否在同一网络，以及防火墙是否允许本地网络访问。手机不能通过 `localhost` 访问电脑。二维码旁可修改连接地址。
+
+说书人可在“更多”中备份管理入口、恢复玩家入口。房间凭据保存在各自浏览器中；清理浏览器数据或换设备前先备份管理入口。停止服务按 `Ctrl+C`，重新启动后可继续已有房间。
+
+## 单人功能测试
+
+已安装依赖后启动；此命令会自动重新构建：
+
+macOS：
+
+```bash
+npm run debug
+```
+
+Windows PowerShell：
+
+```powershell
+npm.cmd run debug
+```
+
+打开 [调试入口](http://localhost:3002/host)，创建房间，在“单人调试”中点击“打开同屏调试台”，再点“补齐并开局”。游戏中也可从“更多”进入。
+
+- 同一个窗口操作说书人和玩家；点击号码切换玩家。
+- “下一个待操作”定位需要选择目标或正在计票的测试玩家。
+- “补齐空位”暂不开局，便于检查等待入座状态。
+- 调试模式只允许本机访问，使用独立的 `data/clocktower-debug.sqlite`。手机扫码和网络连接测试请使用正常启动方式。
+- 调试台切换号码会保留未发送内容；刷新整个调试台会清除模拟玩家的本地草稿，已提交的数据仍保存在测试数据库中。
+
+## 自动化测试与开发
+
+macOS：
+
+```bash
+npm test
+npm run build
+```
+
+Windows PowerShell：
+
+```powershell
+npm.cmd test
+npm.cmd run build
+```
+
+修改代码时可用 `npm run dev`（Windows：`npm.cmd run dev`）启动自动刷新，访问 [开发入口](http://localhost:5173/host)。它默认使用正常数据库；单人模拟请使用上面的调试模式。
+
+更新代码或依赖后，重新执行 `npm ci` 和 `npm run build`（Windows 使用 `npm.cmd`），然后启动。
+
+正常数据保存在 `data/clocktower.sqlite`。数据库、浏览器管理备份、依赖和构建产物均不提交到 Git。需要备份对局时，先停止服务再复制 `data` 文件夹。

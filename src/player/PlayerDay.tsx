@@ -1,38 +1,6 @@
 import { useState } from "react";
 import type { RoomView } from "../../shared/types";
 import type { Send } from "../useRoom";
-import Grimoire, { type GrimoireSeat } from "../ui/Grimoire";
-
-/** Public seats only: alive, dead, dead vote. The same picture on every phone. */
-export function PublicCircle({ room }: { room: RoomView }) {
-  const me = room.viewer.seatId;
-  const seats: GrimoireSeat[] = room.seats.map((s) => ({
-    key: s.id,
-    number: s.number,
-    glyph: String(s.number),
-    tone: "neutral",
-    dead: !s.alive,
-    rings: s.id === me ? ["self"] : undefined,
-    label: !s.alive ? (s.deadVoteAvailable ? "亡 · 有票" : "亡") : undefined,
-    ariaLabel: `${s.number} 号${s.id === me ? "（你）" : ""}，${s.alive ? "存活" : s.deadVoteAvailable ? "死亡，死者票未用" : "死亡，死者票已用"}`,
-  }));
-  const living = room.seats.filter((s) => s.alive).length;
-  return (
-    <div className="pl-circle">
-      <Grimoire
-        label="座位"
-        capacity={room.capacity}
-        seats={seats}
-        center={
-          <>
-            <span className="pl-picked" style={{ minHeight: 0 }}>{living}</span>
-            <span className="pl-small">人存活 · 过半 {Math.ceil(living / 2)} 票</span>
-          </>
-        }
-      />
-    </div>
-  );
-}
 
 export function PlayerVote({ room, send }: { room: RoomView; send: Send }) {
   const vote = room.liveVote!;

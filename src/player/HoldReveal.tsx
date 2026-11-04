@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 /**
  * Press and hold to read private content; it hides the moment the finger
  * lifts, the page loses focus or the tab is hidden. Every player has the same
- * buttons, so holding one reveals nothing to a neighbour.
+ * buttons in the same place, so holding one reveals nothing to a neighbour.
  */
 export default function HoldReveal({
   label,
@@ -25,9 +25,9 @@ export default function HoldReveal({
   const show = () => setShown(true);
   const hide = () => setShown(false);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <>
       {shown && (
-        <div className="pl-reveal" role="status">
+        <div className="hold-panel" role="status">
           {children}
         </div>
       )}
@@ -35,6 +35,7 @@ export default function HoldReveal({
         type="button"
         className="pl-hold"
         aria-pressed={shown}
+        aria-label={`按住查看${label}`}
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture?.(e.pointerId);
           show();
@@ -52,8 +53,9 @@ export default function HoldReveal({
         onKeyUp={hide}
         onBlur={hide}
       >
-        {shown ? "松开即隐藏" : label}
+        {shown ? "松开隐藏" : label}
+        <small aria-hidden="true">按住</small>
       </button>
-    </div>
+    </>
   );
 }

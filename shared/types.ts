@@ -1,5 +1,7 @@
 import type { ChoiceKind } from "./action-choice";
 import type { Setup } from "./setup";
+import type { EndReview, GameRecap, GameResult } from "./endgame";
+import type { PlayerWorkspace, StorytellerWorkbench } from "./workspace";
 export type Phase =
   | "LOBBY"
   | "SETUP"
@@ -25,6 +27,10 @@ export interface PublicSeat {
 export interface Assignment {
   actualRoleId: string;
   perceivedRoleId: string;
+}
+export interface RoundSetup {
+  mode: "keep" | "host" | "rescan";
+  seatingConfirmed: boolean;
 }
 export interface NightAction {
   choiceKind?: ChoiceKind;
@@ -73,6 +79,12 @@ export interface AuditEvent {
   timestamp: string;
 }
 export interface RoomView {
+  roundSetup?: RoundSetup;
+  result?: GameResult;
+  recap?: GameRecap;
+  pastRecaps?: GameRecap[];
+  /** Issued when identities are dealt; isolates play drafts from registration. */
+  playId?: string;
   code: string;
   title: string;
   capacity: number;
@@ -105,6 +117,8 @@ export interface RoomView {
   evilEnabled: boolean;
   evilMembers?: string[];
   actions: NightAction[];
+  /** Only the owning player, after identities have been dealt. */
+  playerWorkspace?: PlayerWorkspace;
   self?: {
     canChangeNumber: boolean;
     perceivedRoleId?: string;
@@ -112,6 +126,11 @@ export interface RoomView {
     bluffs?: string[];
   };
   storyteller?: {
+    canStartNextRound?: boolean;
+    endReview?: EndReview;
+    recapPreview?: GameRecap;
+    workbench?: StorytellerWorkbench;
+    debug?: { seatIds: string[] };
     notices: RuleNotice[];
     staleConditions: { seatId: string; condition: "poisoned" | "protected" }[];
     evilInfoSent: boolean;
@@ -156,6 +175,10 @@ export interface GroupInvitation {
   status: "pending" | "accepted" | "declined" | "cancelled";
 }
 export interface NoteRevision {
+  /** Monotonic save order within the owner's current game, even in one millisecond. */
+  sequence?: number;
+  /** Soft removal keeps all earlier information and allows restoration. */
+  archived?: boolean;
   seatNumbers: Record<string, number>;
   version: number;
   day: number;

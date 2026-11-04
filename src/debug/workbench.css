@@ -1,0 +1,24 @@
+.debug-workbench { height: 100dvh; display: flex; flex-direction: column; gap: 8px; padding: 10px; box-sizing: border-box; }
+.debug-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.debug-toolbar > a { margin-left: auto; }
+.debug-seats { display: flex; flex-wrap: wrap; gap: 6px; }
+.debug-seats button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 12px; min-width: 78px; }
+.debug-seats button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.debug-seats small { opacity: .7; }
+.debug-screens { display: flex; flex: 1; min-height: 0; gap: 10px; }
+.debug-host, .debug-phone { display: flex; flex-direction: column; min-height: 0; min-width: 0; border: 1px solid var(--border, #45403a); border-radius: 10px; overflow: hidden; }
+.debug-host { flex: 1; }
+.debug-phone { flex: 0 0 390px; }
+.debug-screen-title { display: flex; align-items: center; gap: 8px; padding: 6px 10px; min-height: 44px; border-bottom: 1px solid var(--border, #45403a); }
+.debug-screen-title button { padding: 4px 8px; min-height: 34px; }
+.debug-screen-title > b { margin-right: auto; }
+.debug-workbench iframe { border: 0; width: 100%; flex: 1; min-height: 0; display: block; background: var(--bg, #14110f); }
+.debug-workbench iframe[hidden] { display: none; }
+.debug-player-pages { display: flex; flex: 1; min-height: 0; }
+.debug-placeholder { padding: 16px; }
+@media (max-width: 950px) {
+  .debug-workbench { height: auto; min-height: 100dvh; }
+  .debug-screens { flex-direction: column; min-height: auto; }
+  .debug-host { flex: none; height: 65dvh; }
+  .debug-phone { flex: none; width: min(390px, 100%); height: 720px; align-self: center; }
+}

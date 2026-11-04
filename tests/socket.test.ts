@@ -35,6 +35,407 @@ function client(url: string, session: Session) {
   socket.connect();
   return { socket, state };
 }
+
+it("never returns previous-game private or public information after rematch, reconnect, or HTTP reload", async () => {
+  const app = await server(),
+    host = app.game.create(10, "Strict current round");
+  app.game.execute(host.code, host.token, randomUUID(), {
+    type: "open_registration",
+  });
+  const players = Array.from({ length: 10 }, (_, i) =>
+    app.game.join(host.code, i + 1),
+  );
+  const player = players[0];
+  const sendDirect = (
+    session: Session,
+    command: Parameters<typeof app.game.execute>[3],
+  ) => app.game.execute(session.code, session.token, randomUUID(), command);
+  sendDirect(player, { type: "add_note", body: "OLD_NOTE_SECRET" });
+  sendDirect(player, {
+    type: "send_message",
+    to: "storyteller",
+    content: "OLD_CHAT_SECRET",
+  });
+  sendDirect(host, {
+    type: "edit_recap",
+    expectedVersion: 0,
+    day: 1,
+    period: "NIGHT",
+    text: "OLD_RECAP_SECRET",
+    hidden: false,
+  });
+  const h = client(app.url, host),
+    a = client(app.url, player);
+  const [hs, first] = await Promise.all([h.state, a.state]);
+  expect(JSON.stringify(first)).toContain("OLD_NOTE_SECRET");
+  const emit = (command: unknown, gameNo: number) =>
+    h.socket
+      .timeout(2000)
+      .emitWithAck("command", { gameNo, commandId: randomUUID(), command });
+  expect(
+    (
+      await emit(
+        {
+          type: "finish_game",
+          mode: "normal",
+          winner: "good",
+          reason: "测试结束",
+          confirmed: true,
+          expectedReviewKey: hs.storyteller!.endReview!.key,
+        },
+        1,
+      )
+    ).ok,
+  ).toBe(true);
+  const newState = (predicate: (room: RoomView) => boolean) =>
+    new Promise<RoomView>((resolve) => {
+      const listener = (room: RoomView) => {
+        if (!predicate(room)) return;
+        a.socket.off("state", listener);
+        resolve(room);
+      };
+      a.socket.on("state", listener);
+    });
+  const clean = (room: RoomView) => {
+    expect(room.gameNo).toBe(2);
+    expect(room.notebook).toEqual([]);
+    expect(room.pastNotebooks).toEqual([]);
+    expect(room.pastPublicRecords).toEqual([]);
+    expect(room.pastRecaps).toEqual([]);
+    expect(room.messages).toEqual([]);
+    expect(room.actions).toEqual([]);
+    expect(JSON.stringify(room)).not.toContain("OLD_");
+  };
+  const waiting = newState(
+    (room) => room.gameNo === 2 && room.phase === "SETUP",
+  );
+  expect((await emit({ type: "new_round", seatMode: "keep" }, 1)).ok).toBe(
+    true,
+  );
+  clean(await waiting);
+  const dealt = newState(
+    (room) => room.gameNo === 2 && room.phase === "FIRST_NIGHT",
+  );
+  expect((await emit({ type: "open_registration" }, 2)).ok).toBe(true);
+  clean(await dealt);
+  a.socket.disconnect();
+  clean(await client(app.url, player).state);
+  const response = await fetch(`${app.url}/api/rooms/${host.code}/state`, {
+    headers: { Authorization: `Bearer ${player.token}` },
+  });
+  expect(response.ok).toBe(true);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  clean(await response.json());
+  expect(
+    app.game.view(host.code, host.token).pastRecaps![0].entries[0].text,
+  ).toBe("OLD_RECAP_SECRET");
+});
+
+it("revokes old player sockets on rescan while retaining the host and accepting round-bound HTTP registrations", async () => {
+  const app = await server();
+  const host = app.game.create(10, "Rescan transport");
+  app.game.execute(host.code, host.token, randomUUID(), {
+    type: "open_registration",
+  });
+  const players = Array.from({ length: 10 }, (_, i) =>
+    app.game.join(host.code, i + 1),
+  );
+  app.game.execute(host.code, host.token, randomUUID(), { type: "end" });
+  const h = client(app.url, host),
+    a = client(app.url, players[0]),
+    b = client(app.url, players[1]);
+  await Promise.all([h.state, a.state, b.state]);
+  const revokedA = new Promise<void>((resolve) =>
+    a.socket.once("session_revoked", () => resolve()),
+  );
+  const revokedB = new Promise<void>((resolve) =>
+    b.socket.once("session_revoked", () => resolve()),
+  );
+  const hostUpdate = new Promise<RoomView>((resolve) =>
+    h.socket.once("state", resolve),
+  );
+  const emit = (command: unknown, gameNo: number) =>
+    h.socket
+      .timeout(2000)
+      .emitWithAck("command", { commandId: randomUUID(), gameNo, command });
+  expect((await emit({ type: "new_round", seatMode: "rescan" }, 1)).ok).toBe(
+    true,
+  );
+  await Promise.all([revokedA, revokedB]);
+  const reset = await hostUpdate;
+  expect(reset).toMatchObject({
+    gameNo: 2,
+    phase: "SETUP",
+    seats: [],
+    roundSetup: { mode: "rescan" },
+  });
+  expect(h.socket.connected).toBe(true);
+  await expect(client(app.url, players[0]).state).rejects.toThrow("会话无效");
+  expect((await emit({ type: "open_registration" }, 2)).ok).toBe(true);
+  const join = (body: unknown) =>
+    fetch(`${app.url}/api/rooms/${host.code}/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  expect((await join({ number: 1 })).ok).toBe(false);
+  expect((await join({ number: 1, gameNo: 1 })).ok).toBe(false);
+  const discovery = await (
+    await fetch(`${app.url}/api/rooms/${host.code}`)
+  ).json();
+  expect(discovery.gameNo).toBe(2);
+  const response = await join({ number: 1, gameNo: 2 });
+  expect(response.status).toBe(201);
+  const fresh = await client(app.url, (await response.json()) as Session).state;
+  expect(fresh).toMatchObject({ gameNo: 2, phase: "SETUP" });
+  expect(fresh.self!.perceivedRoleId).toBeUndefined();
+  expect(fresh.notebook).toEqual([]);
+  expect(fresh.storyteller).toBeUndefined();
+});
+
+it("publishes a normal ending and concise recap only after host confirmation, including reconnect and corrections", async () => {
+  const app = await server();
+  const host = app.game.create(10, "Recap transport");
+  app.game.execute(host.code, host.token, randomUUID(), {
+    type: "open_registration",
+  });
+  const players = Array.from({ length: 10 }, (_, i) =>
+    app.game.join(host.code, i + 1),
+  );
+  app.game.execute(host.code, host.token, randomUUID(), {
+    type: "edit_recap",
+    expectedVersion: 0,
+    day: 1,
+    period: "NIGHT",
+    text: "线下确认：2号向8号下毒",
+    hidden: false,
+  });
+  const h = client(app.url, host),
+    a = client(app.url, players[0]),
+    b = client(app.url, players[1]);
+  const [hostState, playerState, otherState] = await Promise.all([
+    h.state,
+    a.state,
+    b.state,
+  ]);
+  expect(hostState.storyteller!.recapPreview!.entries).toHaveLength(1);
+  expect(JSON.stringify([playerState, otherState])).not.toContain("线下确认");
+  const command = {
+    type: "finish_game",
+    mode: "normal",
+    winner: "good",
+    reason: "线下胜负由说书人裁定",
+    confirmed: true,
+    expectedReviewKey: hostState.storyteller!.endReview!.key,
+  };
+  const emit = (socket: Socket, command: unknown) =>
+    socket
+      .timeout(2000)
+      .emitWithAck("command", { gameNo: 1, commandId: randomUUID(), command });
+  expect((await emit(a.socket, command)).ok).toBe(false);
+  const updatedA = new Promise<RoomView>((resolve) =>
+    a.socket.once("state", resolve),
+  );
+  const updatedB = new Promise<RoomView>((resolve) =>
+    b.socket.once("state", resolve),
+  );
+  expect((await emit(h.socket, command)).ok).toBe(true);
+  const [av, bv] = await Promise.all([updatedA, updatedB]);
+  expect(av.phase).toBe("ENDED");
+  expect(av.result).toMatchObject({ mode: "normal", winner: "good" });
+  expect(av.recap!.seats).toHaveLength(10);
+  expect(av.recap!.entries[0].text).toContain("2号向8号下毒");
+  expect(av.recap).toEqual(bv.recap);
+  expect(av.storyteller).toBeUndefined();
+  a.socket.disconnect();
+  expect((await client(app.url, players[0]).state).recap).toEqual(av.recap);
+  const correction = new Promise<RoomView>((resolve) =>
+    b.socket.once("state", resolve),
+  );
+  expect(
+    (
+      await emit(h.socket, {
+        type: "edit_recap",
+        entryId: av.recap!.entries[0].id,
+        expectedVersion: av.recap!.version,
+        day: 1,
+        period: "NIGHT",
+        text: "更正：2号向7号下毒",
+        hidden: false,
+      })
+    ).ok,
+  ).toBe(true);
+  expect((await correction).recap!.entries[0].text).toBe("更正：2号向7号下毒");
+});
+
+it.each(["FIRST_NIGHT", "OTHER_NIGHT"] as const)(
+  "delivers and corrects private results over live sockets during %s, before dawn",
+  async (phase) => {
+    const app = await server();
+    const host = app.game.create(10, "Immediate night results");
+    const execute = (command: Parameters<typeof app.game.execute>[3]) =>
+      app.game.execute(host.code, host.token, randomUUID(), command);
+    execute({ type: "open_registration" });
+    const players = Array.from({ length: 10 }, (_, i) =>
+      app.game.join(host.code, i + 1),
+    );
+    const hostView = () => app.game.view(host.code, host.token);
+    const ids = hostView().seats.map((seat) => seat.id);
+    if (phase === "OTHER_NIGHT")
+      execute({
+        type: "correct_phase",
+        phase,
+        day: 2,
+        reason: "测试第二夜",
+        expectedPhaseVersion: hostView().storyteller!.phaseVersion,
+      });
+    execute({
+      type: "request_action",
+      seatId: ids[0],
+      referenceRoleId: "fortuneteller",
+      prompt: "查验两人",
+      targetCount: 2,
+      expectedPhaseVersion: hostView().storyteller!.phaseVersion,
+    });
+    execute({ type: "set_alive", seatId: ids[1], alive: false });
+    const h = client(app.url, host),
+      a = client(app.url, players[0]),
+      b = client(app.url, players[1]);
+    const [, initial] = await Promise.all([h.state, a.state, b.state]);
+    const actionId = initial.actions[0].id;
+    const emit = (socket: Socket, command: unknown) =>
+      socket.timeout(2000).emitWithAck("command", {
+        gameNo: 1,
+        commandId: randomUUID(),
+        command,
+      });
+    expect(
+      (
+        await emit(a.socket, {
+          type: "submit_action",
+          actionId,
+          targets: [ids[2], ids[3]],
+          expectedVersion: 0,
+        })
+      ).ok,
+    ).toBe(true);
+    const resultState = (socket: Socket, version: number) =>
+      new Promise<RoomView>((resolve) => {
+        const listener = (room: RoomView) => {
+          if (room.playerWorkspace?.results[0]?.version !== version) return;
+          socket.off("state", listener);
+          resolve(room);
+        };
+        socket.on("state", listener);
+      });
+    const delivered = resultState(a.socket, 1);
+    expect(
+      (
+        await emit(h.socket, {
+          type: "send_action_response",
+          actionId,
+          response: "wire-result",
+          expectedVersion: 1,
+          expectedContextVersion: hostView().storyteller!.contextVersion,
+        })
+      ).ok,
+    ).toBe(true);
+    const received = await delivered;
+    expect(received.phase).toBe(phase);
+    expect(received.playerWorkspace!.results[0].response).toBe("wire-result");
+    expect(received.seats[1].alive).toBe(true);
+    const corrected = resultState(a.socket, 2);
+    expect(
+      (
+        await emit(h.socket, {
+          type: "correct_action_response",
+          actionId,
+          response: "wire-correction",
+          reason: "更正",
+          expectedResponseVersion: 1,
+          expectedContextVersion: hostView().storyteller!.contextVersion,
+        })
+      ).ok,
+    ).toBe(true);
+    expect((await corrected).playerWorkspace!.results[0].history).toHaveLength(
+      2,
+    );
+    a.socket.disconnect();
+    const reconnected = await client(app.url, players[0]).state;
+    expect(reconnected.phase).toBe(phase);
+    expect(reconnected.playerWorkspace!.results[0]).toMatchObject({
+      response: "wire-correction",
+      version: 2,
+    });
+    const other = await client(app.url, players[1]).state;
+    expect(other.playerWorkspace!.results).toEqual([]);
+    expect(JSON.stringify(other)).not.toContain("wire-result");
+    expect(JSON.stringify(other)).not.toContain("wire-correction");
+  },
+);
+
+it("rejects concurrent notebook edits without exposing the edits to other sockets", async () => {
+  const app = await server();
+  const host = app.game.create(10, "Concurrent notebook");
+  app.game.execute(host.code, host.token, randomUUID(), {
+    type: "open_registration",
+  });
+  const players = Array.from({ length: 10 }, (_, i) =>
+    app.game.join(host.code, i + 1),
+  );
+  app.game.execute(host.code, players[0].token, randomUUID(), {
+    type: "add_note",
+    body: "original",
+  });
+  const h = client(app.url, host),
+    a = client(app.url, players[0]),
+    second = client(app.url, players[0]),
+    b = client(app.url, players[1]);
+  const [, own] = await Promise.all([h.state, a.state, second.state, b.state]);
+  const hostUpdates: RoomView[] = [],
+    otherUpdates: RoomView[] = [];
+  h.socket.on("state", (room) => hostUpdates.push(room));
+  b.socket.on("state", (room) => otherUpdates.push(room));
+  const emit = (socket: Socket, body: string) =>
+    socket.timeout(2000).emitWithAck("command", {
+      gameNo: 1,
+      commandId: randomUUID(),
+      command: {
+        type: "edit_notebook",
+        entryId: own.notebook[0].id,
+        expectedVersion: 1,
+        patch: { body },
+      },
+    });
+  const acknowledgements = await Promise.all([
+    emit(a.socket, "first edit"),
+    emit(second.socket, "second edit"),
+  ]);
+  expect(acknowledgements.filter((ack) => ack.ok)).toHaveLength(1);
+  expect(acknowledgements.find((ack) => !ack.ok).error).toContain(
+    "其他页面修改",
+  );
+  const persisted = app.game.view(host.code, players[0].token).notebook[0];
+  expect(persisted.revisions).toHaveLength(2);
+  expect(persisted.revisions[0].body).toBe("original");
+  const barrierH = new Promise<void>((resolve) =>
+    h.socket.once("state", () => resolve()),
+  );
+  const barrierB = new Promise<void>((resolve) =>
+    b.socket.once("state", () => resolve()),
+  );
+  await h.socket.timeout(2000).emitWithAck("command", {
+    gameNo: 1,
+    commandId: randomUUID(),
+    command: { type: "evil_channel", enabled: false, confirm: false },
+  });
+  await Promise.all([barrierH, barrierB]);
+  expect(hostUpdates).toHaveLength(1);
+  expect(otherUpdates).toHaveLength(1);
+  expect(JSON.stringify([...hostUpdates, ...otherUpdates])).not.toContain(
+    "edit",
+  );
+});
 describe("HTTP and real Socket.IO transport", () => {
   it("creates, joins, connects, rejects unauthorized commands and privately delivers updates", async () => {
     const app = await server();
@@ -60,6 +461,8 @@ describe("HTTP and real Socket.IO transport", () => {
     const b = await request(`/api/rooms/${host.code}/join`, {
       number: 2,
     });
+    for (let number = 3; number <= 10; number++)
+      await request(`/api/rooms/${host.code}/join`, { number });
     const hostClient = client(app.url, host);
     const playerA = client(app.url, a);
     const playerB = client(app.url, b);
@@ -102,6 +505,7 @@ describe("HTTP and real Socket.IO transport", () => {
     expect(Object.keys(discovery).sort()).toEqual([
       "capacity",
       "code",
+      "gameNo",
       "phase",
       "registration",
       "title",
@@ -113,13 +517,24 @@ describe("HTTP and real Socket.IO transport", () => {
     const restored = await reconnected.state;
     expect(restored.viewer).toEqual(aState.viewer);
     expect(restored.messages).toHaveLength(1);
+    // Removing a registration is only available before a game starts.
+    for (const type of ["end", "new_round"]) {
+      const result = await hostClient.socket
+        .timeout(2000)
+        .emitWithAck("command", {
+          gameNo: 1,
+          commandId: randomUUID(),
+          command: { type },
+        });
+      expect(result.ok).toBe(true);
+    }
     const revoked = new Promise<void>((resolve) =>
       playerB.socket.once("session_revoked", resolve),
     );
     const removed = await hostClient.socket
       .timeout(2000)
       .emitWithAck("command", {
-        gameNo: 1,
+        gameNo: 2,
         commandId: randomUUID(),
         command: { type: "remove_player", seatId: bState.viewer.seatId },
       });
@@ -221,63 +636,75 @@ it("serializes simultaneous mutual invites, duplicate accepts and old-round tran
   expect(view(players[1]).messages).toEqual([]);
 });
 
-it("sends notebook changes only to the owner's sessions, not the host or other players", async () => {
-  const app = await server();
-  const host = app.game.create(10, "Private optional tools");
-  app.game.execute(host.code, host.token, randomUUID(), {
-    type: "open_registration",
-  });
-  const p = app.game.join(host.code, 1),
-    other = app.game.join(host.code, 2);
-  const h = client(app.url, host),
-    a = client(app.url, p),
-    second = client(app.url, p),
-    b = client(app.url, other);
-  await Promise.all([h.state, a.state, second.state, b.state]);
-  const hostUpdates: RoomView[] = [],
-    otherUpdates: RoomView[] = [];
-  h.socket.on("state", (r) => hostUpdates.push(r));
-  b.socket.on("state", (r) => otherUpdates.push(r));
-  const ownUpdate = new Promise<RoomView>((resolve) =>
-    second.socket.once("state", resolve),
-  );
-  const reply = await a.socket.timeout(2000).emitWithAck("command", {
-    gameNo: 1,
-    commandId: randomUUID(),
-    command: {
-      type: "save_notebook",
-      kind: "text",
-      target: "",
-      expectedVersion: 0,
-      day: 1,
-      period: "NIGHT",
-      roleId: "",
-      source: "suspected",
-      body: "no activity notification",
-      info: {},
-    },
-  });
-  expect(reply.ok).toBe(true);
-  expect((await ownUpdate).notebook).toHaveLength(1);
-  const hostBarrier = new Promise<RoomView>((resolve) =>
-    h.socket.once("state", resolve),
-  );
-  const otherBarrier = new Promise<RoomView>((resolve) =>
-    b.socket.once("state", resolve),
-  );
-  await h.socket.timeout(2000).emitWithAck("command", {
-    gameNo: 1,
-    commandId: randomUUID(),
-    command: { type: "close_registration" },
-  });
-  await Promise.all([hostBarrier, otherBarrier]);
-  expect(hostUpdates).toHaveLength(1);
-  expect(otherUpdates).toHaveLength(1);
-  expect(JSON.stringify(hostUpdates)).not.toContain("no activity notification");
-  expect(
-    hostUpdates[0].storyteller!.events.some((e) => e.type === "save_notebook"),
-  ).toBe(false);
-});
+it.each(["save_notebook", "add_note"])(
+  "sends %s changes only to the owner's sessions, not the host or other players",
+  async (type) => {
+    const app = await server();
+    const host = app.game.create(10, "Private optional tools");
+    app.game.execute(host.code, host.token, randomUUID(), {
+      type: "open_registration",
+    });
+    const p = app.game.join(host.code, 1),
+      other = app.game.join(host.code, 2);
+    for (let number = 3; number <= 10; number++)
+      app.game.join(host.code, number);
+    const h = client(app.url, host),
+      a = client(app.url, p),
+      second = client(app.url, p),
+      b = client(app.url, other);
+    await Promise.all([h.state, a.state, second.state, b.state]);
+    const hostUpdates: RoomView[] = [],
+      otherUpdates: RoomView[] = [];
+    h.socket.on("state", (r) => hostUpdates.push(r));
+    b.socket.on("state", (r) => otherUpdates.push(r));
+    const ownUpdate = new Promise<RoomView>((resolve) =>
+      second.socket.once("state", resolve),
+    );
+    const reply = await a.socket.timeout(2000).emitWithAck("command", {
+      gameNo: 1,
+      commandId: randomUUID(),
+      command:
+        type === "add_note"
+          ? { type, body: "no activity notification" }
+          : {
+              type: "save_notebook",
+              kind: "text",
+              target: "",
+              expectedVersion: 0,
+              day: 1,
+              period: "NIGHT",
+              roleId: "",
+              source: "suspected",
+              body: "no activity notification",
+              info: {},
+            },
+    });
+    expect(reply.ok).toBe(true);
+    expect((await ownUpdate).notebook).toHaveLength(1);
+    const hostBarrier = new Promise<RoomView>((resolve) =>
+      h.socket.once("state", resolve),
+    );
+    const otherBarrier = new Promise<RoomView>((resolve) =>
+      b.socket.once("state", resolve),
+    );
+    await h.socket.timeout(2000).emitWithAck("command", {
+      gameNo: 1,
+      commandId: randomUUID(),
+      command: { type: "evil_channel", enabled: false, confirm: false },
+    });
+    await Promise.all([hostBarrier, otherBarrier]);
+    expect(hostUpdates).toHaveLength(1);
+    expect(otherUpdates).toHaveLength(1);
+    expect(JSON.stringify(hostUpdates)).not.toContain(
+      "no activity notification",
+    );
+    expect(
+      hostUpdates[0].storyteller!.events.some(
+        (e) => e.type === "save_notebook",
+      ),
+    ).toBe(false);
+  },
+);
 
 it("recovers a seat over HTTP, revokes its old live socket, and rejects reused tickets", async () => {
   const app = await server();

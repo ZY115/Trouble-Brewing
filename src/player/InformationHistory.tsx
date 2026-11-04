@@ -1,6 +1,6 @@
 import type { NightAction, RoomView } from "../../shared/types";
 import { choiceSentence } from "../../shared/action-choice";
-import { isNight, nightMessages, revealedActions } from "./visibility";
+import { nightMessages, revealedActions } from "./visibility";
 
 export interface InformationItem {
   key: string;
@@ -51,9 +51,7 @@ export function MyInfo({ room }: { room: RoomView }) {
   if (!items.length)
     return (
       <span className="pl-small">
-        {isNight(room)
-          ? "今晚的裁定在天亮后查看；私聊可随时打开。"
-          : "还没有收到信息。"}
+        还没有收到信息。
       </span>
     );
   return (
@@ -82,9 +80,7 @@ export function MyInfo({ room }: { room: RoomView }) {
           共 {items.length} 条，可在菜单查看完整信息记录。
         </span>
       )}
-      {isNight(room) && (
-        <span className="pl-small">今晚的新裁定天亮后查看。</span>
-      )}
+
     </>
   );
 }
@@ -126,9 +122,7 @@ export default function InformationHistory({ room }: { room: RoomView }) {
           )}
         </section>
       ))}
-      {isNight(room) && (
-        <p className="pl-small">今晚的新裁定天亮后查看。私聊即时送达。</p>
-      )}
+
     </>
   );
 }

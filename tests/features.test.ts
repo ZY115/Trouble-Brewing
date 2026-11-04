@@ -187,9 +187,10 @@ describe("private notebook revisions", () => {
     });
     act(host, { type: "new_round" });
     expect(view(a).notebook).toEqual([]);
-    const archive = view(a).pastNotebooks[0];
-    expect(archive.entries[0].revisions[0].seatNumbers[ids[1]]).toBe(2);
-    expect(view(b).pastNotebooks[0].entries).toEqual([]);
+    expect(view(a).pastNotebooks).toEqual([]);
+    act(host, { type: "open_registration" });
+    expect(view(a).pastNotebooks).toEqual([]);
+    expect(view(b).pastNotebooks).toEqual([]);
     expect(view(host).pastNotebooks).toEqual([]);
   });
 });
@@ -324,6 +325,9 @@ describe("public vote ledger", () => {
     );
     expect(() => act(host, correction)).toThrow("已被修订");
     act(host, { type: "new_round" });
-    expect(view(a).pastPublicRecords[0].records).toHaveLength(3);
+    expect(view(a).pastPublicRecords).toEqual([]);
+    act(host, { type: "open_registration" });
+    expect(view(a).pastPublicRecords).toEqual([]);
+    expect(view(host).pastPublicRecords[0].records).toHaveLength(3);
   });
 });

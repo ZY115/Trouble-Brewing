@@ -6,9 +6,15 @@ export const joinCode = (
 ).toUpperCase();
 export const isHostEntry =
   location.pathname === "/host" || location.pathname === "/host/";
+export const debugSeatId =
+  !isHostEntry && joinCode
+    ? (new URLSearchParams(location.search).get("debugSeat") ?? "")
+    : "";
 export const sessionKey = isHostEntry
   ? "clocktower.host.v2"
-  : `clocktower.player.${joinCode}`;
+  : debugSeatId
+    ? `clocktower.debug.player.${joinCode}.${debugSeatId}`
+    : `clocktower.player.${joinCode}`;
 export function hostSessions(): Session[] {
   try {
     const cached = JSON.parse(
@@ -45,6 +51,7 @@ export function forgetSession(s: Session) {
   localStorage.removeItem(sessionKey);
 }
 export function loadSession(): Session | null {
+  if (isHostEntry && joinCode) return hostSessions().find(s => s.code === joinCode) ?? null;
   if (new URLSearchParams(location.hash.slice(1)).has("recover")) return null;
   if (!isHostEntry && !joinCode) return null;
   try {

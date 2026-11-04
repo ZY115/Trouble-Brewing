@@ -98,27 +98,28 @@ function room(phase: RoomView["phase"], day: number): RoomView {
   } as RoomView;
 }
 
-describe("night rulings wait for dawn while private chat remains immediate", () => {
-  it("hides tonight's delivered ruling while it is still night", () => {
-    expect(revealedActions(room("OTHER_NIGHT", 2)).map((a) => a.night)).toEqual(
-      [1],
-    );
+describe("rulings and private replies reach the player immediately", () => {
+  it("shows tonight's delivered ruling while it is still night", () => {
+    expect(revealedActions(room("OTHER_NIGHT", 2)).map((a) => a.night)).toEqual([1, 2]);
     expect(revealedActions(room("DAY", 2)).map((a) => a.night)).toEqual([1, 2]);
   });
 
-  it("hides the first night's ruling until the first day", () => {
+  it("shows the first night's ruling during the first night", () => {
     const first = {
       ...room("FIRST_NIGHT", 1),
       actions: [action(1, "DELIVERED")],
     };
-    expect(revealedActions(first)).toEqual([]);
-    expect(revealedActions({ ...first, phase: "DAY" })).toHaveLength(1);
+    expect(revealedActions(first)).toHaveLength(1);
+  });
+
+  it("never shows a ruling that has not been sent", () => {
+    const pending = { ...room("OTHER_NIGHT", 2), actions: [action(2, "SUBMITTED")] };
+    expect(revealedActions(pending)).toEqual([]);
   });
 
   it("shows private replies immediately during the night", () => {
     const night = visibleRoom(room("OTHER_NIGHT", 2)).messages.map((m) => m.id);
     expect(night).toEqual(["m1", "m2", "m3", "m4"]);
-    expect(visibleRoom(room("DAY", 2)).messages).toHaveLength(4);
   });
 
   it("files storyteller messages under the night they arrived", () => {

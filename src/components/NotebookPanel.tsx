@@ -137,7 +137,7 @@ export default function NotebookPanel({
     <div className="notebook-page">
       <div className="section-title">
         <div>
-          <h2>我的笔记</h2>
+          <h2>第 {room.gameNo} 局 · 我的笔记</h2>
           <p>仅自己可见。标注是个人记录，不代表真实身份。</p>
         </div>
       </div>
@@ -369,25 +369,6 @@ export default function NotebookPanel({
           )}
         </article>
       ))}
-      {room.pastNotebooks
-        .filter((a) => a.entries.length)
-        .map((a) => (
-          <details className="panel" key={a.gameNo}>
-            <summary>第 {a.gameNo} 局笔记（只读）</summary>
-            {a.entries.map((e) => (
-              <article className="note-entry" key={e.id}>
-                <h4>
-                  {e.kind === "claim"
-                    ? `${e.revisions.at(-1)!.seatNumbers[e.target]} 号`
-                    : "文字笔记"}
-                </h4>
-                {[...e.revisions].reverse().map((r) => (
-                  <Revision key={r.version} revision={r} seats={a.seats} />
-                ))}
-              </article>
-            ))}
-          </details>
-        ))}
     </div>
   );
 }

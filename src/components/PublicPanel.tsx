@@ -1,4 +1,5 @@
 import PublicRoster from "./PublicRoster";
+import { RecapFacts, RecapTimeline, ResultBanner } from "./Recap";
 import { abstentionSummary } from "../../shared/vote-display";
 import LiveVoting, { DeadVoteControls } from "./LiveVoting";
 import { useState } from "react";
@@ -251,12 +252,23 @@ export default function PublicPanel({
             : undefined
         }
       />
-      {room.pastPublicRecords.map((a) => (
-        <details className="panel" key={a.gameNo}>
-          <summary>第 {a.gameNo} 局公开记录</summary>
-          <Timeline records={a.records} />
-        </details>
-      ))}
+      {room.storyteller &&
+        room.pastPublicRecords.map((a) => (
+          <details className="panel" key={a.gameNo}>
+            <summary>第 {a.gameNo} 局公开记录</summary>
+            <Timeline records={a.records} />
+          </details>
+        ))}
+      {[...(room.pastRecaps ?? [])]
+        .sort((a, b) => b.gameNo - a.gameNo)
+        .map((recap) => (
+          <details className="panel" key={`recap-${recap.gameNo}`}>
+            <summary>第 {recap.gameNo} 局复盘</summary>
+            <ResultBanner result={recap.result} />
+            <RecapFacts recap={recap} />
+            <RecapTimeline recap={recap} room={room} />
+          </details>
+        ))}
     </div>
   );
 }

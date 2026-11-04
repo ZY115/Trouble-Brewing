@@ -1,9 +1,14 @@
 import type { NightAction } from "./types";
 export const completedAction = (action: NightAction) =>
   ["DELIVERED", "CANCELLED", "OFFLINE"].includes(action.status);
-export const privateToolCommands = new Set([
+export const notebookCommands = new Set([
   "save_note",
   "save_notebook",
+  "add_note",
+  "edit_notebook",
+]);
+export const privateToolCommands = new Set([
+  ...notebookCommands,
   "send_message",
   "create_group",
   "invite_group",

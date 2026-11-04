@@ -37,14 +37,6 @@ export default function PlayerRecords({ room }: { room: RoomView }) {
         <span className="pl-small">第 {room.gameNo} 局 · 当前局</span>
         <RecordList records={room.publicRecords} />
       </section>
-      {[...room.pastPublicRecords]
-        .sort((a, b) => b.gameNo - a.gameNo)
-        .map((past) => (
-          <details className="pl-card" key={past.gameNo}>
-            <summary>第 {past.gameNo} 局 · 公开记录</summary>
-            <RecordList records={past.records} />
-          </details>
-        ))}
     </>
   );
 }

@@ -320,6 +320,7 @@ describe("manual night workflow and recovery", () => {
         type: "open_registration",
       });
       const player = game.join(host.code, 1);
+      for (let number = 2; number <= 10; number++) game.join(host.code, number);
       const receipt = randomUUID();
       const command: Command = { type: "save_note", note: "survives-restart" };
       game.execute(player.code, player.token, receipt, command);

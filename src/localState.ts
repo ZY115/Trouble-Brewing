@@ -2,6 +2,11 @@ import { useMemo, useSyncExternalStore } from "react";
 import type { RoomView } from "../shared/types";
 
 const fallback = new Map<string, string | null>();
+// Same-tab iframes share sessionStorage. Keep debug-player drafts in their
+// own JS realm so switching a simulated device cannot purge another's drafts.
+const debugFrame = typeof location !== "undefined" &&
+  new URLSearchParams(location.search).get("debugEmbed") === "1" &&
+  !!new URLSearchParams(location.search).get("debugSeat");
 const listeners = new Set<() => void>();
 const subscribe = (fn: () => void) => {
   listeners.add(fn);
@@ -10,7 +15,9 @@ const subscribe = (fn: () => void) => {
   };
 };
 function read(key: string) {
+  if (obsolete(key)) return null;
   if (fallback.has(key)) return fallback.get(key) ?? null;
+  if (debugFrame) return null;
   try {
     return sessionStorage.getItem(key);
   } catch {
@@ -24,8 +31,49 @@ function parse<T>(raw: string | null, initial: T): T {
     return initial;
   }
 }
+export const localScope = (room: RoomView) =>
+  `clocktower.local:${room.code}:${room.gameNo}:${room.viewer.seatId ?? "host"}${room.playId ? `:play:${room.playId}` : ""}:`;
 export const localKey = (room: RoomView, name: string) =>
-  `clocktower.local:${room.code}:${room.gameNo}:${room?.viewer.seatId ?? "host"}:${name}`;
+  localScope(room) + name;
+const activePlayerScopes = new Map<string, string | null>();
+function obsolete(key: string) {
+  const parts = key.split(":");
+  return (
+    parts[0] === "clocktower.local" &&
+    parts[3] !== "host" &&
+    activePlayerScopes.has(parts[1]) &&
+    !key.startsWith(activePlayerScopes.get(parts[1]) ?? "\0")
+  );
+}
+
+/** Purge old player drafts/marks, including legacy storage, but never credentials. */
+export function clearPlayerCache(code: string, current?: RoomView) {
+  activePlayerScopes.set(code, current ? localScope(current) : null);
+  const stale = (key: string) =>
+    key.startsWith(`clocktower.verdicts:${code}:`) ||
+    (key.startsWith(`clocktower.local:${code}:`) && obsolete(key));
+  for (const key of fallback.keys()) if (stale(key)) fallback.set(key, null);
+  for (const getStorage of debugFrame ? [] : [() => sessionStorage, () => localStorage]) {
+    try {
+      const storage = getStorage();
+      const keys = Array.from({ length: storage.length }, (_, i) =>
+        storage.key(i),
+      );
+      for (const key of keys)
+        if (key && stale(key)) {
+          fallback.set(key, null);
+          try {
+            storage.removeItem(key);
+          } catch {
+            /* Obsolete scopes stay unreadable. */
+          }
+        }
+    } catch {
+      /* Private mode: the in-memory guard still isolates games. */
+    }
+  }
+  listeners.forEach((fn) => fn());
+}
 
 /** Drafts and read markers stay in this browser tab, never in room state or host logs. */
 export function useLocalState<T>(
@@ -35,11 +83,14 @@ export function useLocalState<T>(
   const raw = useSyncExternalStore(subscribe, () => read(key));
   const value = useMemo(() => parse(raw, initial), [raw, initial]);
   const put = (next: string | null) => {
+    if (obsolete(key)) return;
     if (read(key) === next) return;
     fallback.set(key, next);
     try {
-      if (next === null) sessionStorage.removeItem(key);
-      else sessionStorage.setItem(key, next);
+      if (!debugFrame) {
+        if (next === null) sessionStorage.removeItem(key);
+        else sessionStorage.setItem(key, next);
+      }
     } catch {
       /* in-memory fallback */
     }

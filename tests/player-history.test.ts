@@ -111,15 +111,18 @@ describe("redesigned player history regressions", () => {
       [7, 6, 5, 4, 3, 2, 1].map((n) => `裁定-${n}`),
     );
   });
-  it("keeps current-night rulings private in both preview and complete history", () => {
+  it("shows current-night rulings as soon as they are delivered", () => {
     const room = responses(fixture().room);
     room.phase = "FIRST_NIGHT";
-    expect(informationItems(room)).toEqual([]);
-    expect(
-      renderToStaticMarkup(createElement(InformationHistory, { room })),
-    ).not.toContain("裁定-7");
+    room.actions[6].status = "SUBMITTED";
+    expect(informationItems(room).map((i) => i.body)).toContain("裁定-6");
+    const full = renderToStaticMarkup(
+      createElement(InformationHistory, { room }),
+    );
+    expect(full).toContain("裁定-6");
+    expect(full).not.toContain("裁定-7");
   });
-  it("renders archived rounds even when the current round is empty, with corrections applied per round", () => {
+  it("never renders archived rounds in the player record page, even if an older server sends them", () => {
     const room = fixture().room;
     room.gameNo = 3;
     room.publicRecords = [];
@@ -135,11 +138,9 @@ describe("redesigned player history regressions", () => {
     ];
     const html = renderToStaticMarkup(createElement(PlayerRecords, { room }));
     expect(html).toContain("当前局");
-    expect(html).toContain("7 号提名自己");
+    expect(html).not.toContain("7 号提名自己");
     expect(html).not.toContain("旧版投票");
-    expect(html.indexOf("上一局公开记录")).toBeLessThan(
-      html.indexOf("7 号提名自己"),
-    );
+    expect(html).not.toContain("上一局公开记录");
   });
   it("supports self-nomination through the server command used by the day screen", () => {
     const { game, host, players } = fixture();

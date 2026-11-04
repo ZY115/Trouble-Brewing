@@ -6,6 +6,8 @@ import type { Send } from "../useRoom";
 import Grimoire, { roleGlyph, type GrimoireSeat } from "../ui/Grimoire";
 import Invitation from "../components/Invitation";
 import Registration from "../components/Registration";
+import DebugPanel from "./DebugPanel";
+import { SeatingEditor } from "./NextRound";
 
 const TEAMS: [Team, string, string][] = [
   ["townsfolk", "镇民", "var(--town)"],
@@ -41,6 +43,8 @@ export default function LobbyStage({
     };
   });
   const issues = validateSetup(room.capacity, st.setup);
+  const mode = room.roundSetup?.mode;
+  const seatingPending = mode === "host" && !room.roundSetup!.seatingConfirmed;
   async function act(command: Parameters<Send>[0]) {
     setBusy(true);
     await send(command);
@@ -78,6 +82,11 @@ export default function LobbyStage({
         />
       </div>
       <div className="lobby-side">
+        <DebugPanel room={room} send={send} />
+        {mode === "host" && room.seats.length > 0 && <SeatingEditor room={room} send={send} />}
+        {mode === "rescan" && !room.seats.length && (
+          <p className="lobby-callout">这一局所有玩家都要重新扫码登记。</p>
+        )}
         <section className="panel" aria-label="配板">
           <div className="panel-heading">
             <h3>配板</h3>
@@ -122,8 +131,12 @@ export default function LobbyStage({
             暂停入场 · 修改配板
           </button>
         ) : (
-          <button className="primary" disabled={busy} onClick={() => void act({ type: "open_registration" })}>
-            确认配板并开放入场
+          <button
+            className="primary"
+            disabled={busy || seatingPending}
+            onClick={() => void act({ type: "open_registration" })}
+          >
+            {seatingPending ? "先确认座位表" : "确认配板并开放入场"}
           </button>
         )}
         <details className="panel">

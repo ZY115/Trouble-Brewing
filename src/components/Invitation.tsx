@@ -18,11 +18,12 @@ export function useJoinLink(room: RoomView) {
         .catch(() => {});
     }
   }, []);
-  let link = `${location.origin}/join/${room.code}`;
+  // The game number lets the server refuse a QR code left over from an earlier game.
+  const path = `/join/${room.code}?g=${room.gameNo}`;
+  let link = `${location.origin}${path}`;
   try {
     const url = new URL(base);
-    if (["http:", "https:"].includes(url.protocol))
-      link = `${url.origin}/join/${room.code}`;
+    if (["http:", "https:"].includes(url.protocol)) link = `${url.origin}${path}`;
   } catch {
     /* Keep current origin until a valid address is entered. */
   }
@@ -48,9 +49,15 @@ export default function Invitation({
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <span className="room-code">{room.code}</span>
           <span className="muted" style={{ fontSize: 13, lineHeight: 1.6 }}>
-            玩家扫码后只填座位号
-            <br />
-            需要连同一个 Wi-Fi
+            {room.storyteller?.debug ? <>
+              调试模式仅限本机浏览器
+              <br />
+              请通过「调试玩家」打开玩家页面
+            </> : <>
+              玩家扫码后只填座位号
+              <br />
+              需要连同一个 Wi-Fi
+            </>}
           </span>
           {onFullscreen && (
             <button

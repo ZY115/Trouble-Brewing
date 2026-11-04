@@ -4,7 +4,7 @@ import { isHostEntry, joinCode, loadSession, hostSessions } from "../session";
 import type { RoomView, Session } from "../../shared/types";
 type Discovery = Pick<
   RoomView,
-  "code" | "title" | "capacity" | "phase" | "registration"
+  "code" | "title" | "capacity" | "phase" | "registration" | "gameNo"
 >;
 export default function Entry({
   onSession,
@@ -19,6 +19,8 @@ export default function Entry({
   const previous = loadSession();
   const savedHosts = hostSessions();
   const recovery = new URLSearchParams(location.hash.slice(1)).get("recover");
+  const linkGame = Number(new URLSearchParams(location.search).get("g")) || undefined;
+  const staleLink = !!room && !!linkGame && room.gameNo !== linkGame;
   const [backup, setBackup] = useState("");
   async function restoreBackup() {
     setBusy(true);
@@ -85,7 +87,7 @@ export default function Entry({
       onSession(
         await api<Session>(
           isHostEntry ? "/api/host/rooms" : `/api/rooms/${joinCode}/join`,
-          isHostEntry ? { capacity } : { number: Number(number) },
+          isHostEntry ? { capacity } : { number: Number(number), ...(linkGame ? { gameNo: linkGame } : {}) },
         ),
       );
     } catch (e) {
@@ -185,6 +187,11 @@ export default function Entry({
               </button>
             ) : (
               <form onSubmit={submit}>
+                {staleLink && (
+                  <p role="alert" className="error">
+                    这是上一局的二维码，请扫描说书人屏幕上的新二维码。
+                  </p>
+                )}
                 <label className="field">
                   你的座位号
                   <input
@@ -201,7 +208,7 @@ export default function Entry({
                 </label>
                 <button
                   className="primary wide"
-                  disabled={busy || !room?.registration.open || !number}
+                  disabled={busy || staleLink || !room?.registration.open || !number}
                 >
                   提交号码
                 </button>

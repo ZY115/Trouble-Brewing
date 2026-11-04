@@ -3,14 +3,9 @@ import type { NightAction, RoomView } from "../../shared/types";
 export const isNight = (room: RoomView) =>
   room.phase === "FIRST_NIGHT" || room.phase === "OTHER_NIGHT";
 
-/**
- * Action rulings from the current night stay hidden until dawn.
- * Private clarification messages remain available immediately in chat.
- */
+/** A ruling reaches its player the moment the storyteller sends it. */
 export function revealedActions(room: RoomView): NightAction[] {
-  return room.actions.filter(
-    (a) => a.status === "DELIVERED" && !(isNight(room) && a.night === room.day),
-  );
+  return room.actions.filter((a) => a.status === "DELIVERED");
 }
 
 export function visibleRoom(room: RoomView): RoomView {

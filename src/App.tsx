@@ -4,9 +4,11 @@ import type { RoomView, Session } from "../shared/types";
 import { useRoom, type Send } from "./useRoom";
 import Entry from "./components/Entry";
 import { useJoinLink } from "./components/Invitation";
-import { loadSession, saveSession, forgetSession } from "./session";
+import { loadSession, saveSession, forgetSession, debugSeatId } from "./session";
+import DebugEntry from "./components/DebugEntry";
 const StorytellerApp = lazy(() => import("./storyteller/StorytellerApp"));
 const PlayerApp = lazy(() => import("./player/PlayerApp"));
+const DebugWorkbench = lazy(() => import("./debug/Workbench"));
 
 function Brand() {
   return (
@@ -67,6 +69,11 @@ function ScanOnly({
 }
 
 export default function App() {
+  if (location.pathname === "/debug") return <Suspense fallback={<p>正在打开调试台…</p>}><DebugWorkbench /></Suspense>;
+  return <GameApp />;
+}
+
+function GameApp() {
   const [session, setSession] = useState<Session | null>(loadSession);
   const [scanRoom, setScanRoom] = useState(
     () => sessionStorage.getItem("clocktower.scanRoom") ?? "",
@@ -89,8 +96,8 @@ export default function App() {
     saveSession(next);
     setSession(next);
   }
-  const leave = () => setSession(null);
-  if (!session) return <Entry onSession={enter} />;
+  const leave = () => debugSeatId ? location.assign("/host") : setSession(null);
+  if (!session) return debugSeatId ? <DebugEntry onSession={enter} /> : <Entry onSession={enter} />;
   if (!room)
     return (
       <div className="loading">
@@ -126,8 +133,12 @@ export default function App() {
   }
   return (
     <Suspense fallback={loading}>
+      {debugSeatId && <div className="notice" style={{ margin: "8px 16px" }}>
+        单人调试 · {room.seats.find((s) => s.id === room.viewer.seatId)?.number} 号玩家
+        <a href="/host">返回说书人</a>
+      </div>}
       <PlayerApp
-        key={`${room.code}-${room.gameNo}`}
+        key={`${room.code}-${room.gameNo}-${room.viewer.seatId}-${room.playId ?? "waiting"}`}
         room={room}
         send={send}
         connected={connected}
