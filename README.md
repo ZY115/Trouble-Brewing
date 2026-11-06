@@ -2,46 +2,51 @@
 
 用于《血染钟楼：暗流涌动》线下对局。电脑运行服务，说书人和玩家通过浏览器使用，无需安装手机 App。
 
-## 准备
+## 一键启动
 
-安装 Node.js 24（包含 npm）和 Git。以下命令在项目文件夹内执行；首次使用先克隆仓库。
+先安装 Node.js 24（包含 npm）。克隆仓库后，打开项目根目录，双击对应文件：
 
-## macOS 启动
+| 用途 | macOS | Windows |
+| --- | --- | --- |
+| 正式对局 | `启动说书人.command` | `启动说书人.bat` |
+| 单人功能测试 | `启动单人测试.command` | `启动单人测试.bat` |
 
-打开终端：
+启动文件会自动安装缺少的依赖、构建并打开浏览器；首次启动需要联网并等待完成。使用过程中保持终端窗口开启，停止服务按 `Ctrl+C`。
+
+正式对局默认打开 [说书人入口](http://localhost:3001/host)，单人测试默认打开 [调试入口](http://localhost:3002/host)。两种模式使用独立数据库。
+
+首次克隆需要 Git：
 
 ```bash
 git clone https://github.com/ZY115/Trouble-Brewing.git
 cd Trouble-Brewing
+```
+
+macOS 启动文件若没有执行权限，在项目目录执行一次：
+
+```bash
+chmod +x 启动说书人.command 启动单人测试.command
+```
+
+## 命令行启动
+
+也可以在项目目录手动执行。macOS：
+
+```bash
 npm ci
 npm run build
 npm start
 ```
 
-打开 [说书人入口](http://localhost:3001/host)。之后未修改代码时，只需在项目目录执行 `npm start`。
-
-也可以双击 `启动说书人.command`，它会检查依赖、构建并启动服务。若没有执行权限：
-
-```bash
-chmod +x 启动说书人.command
-./启动说书人.command
-```
-
-## Windows 启动
-
-打开 PowerShell：
+Windows PowerShell：
 
 ```powershell
-git clone https://github.com/ZY115/Trouble-Brewing.git
-cd Trouble-Brewing
 npm.cmd ci
 npm.cmd run build
 npm.cmd start
 ```
 
-打开 [说书人入口](http://localhost:3001/host)。之后未修改代码时，只需在项目目录执行 `npm.cmd start`。
-
-也可以双击 `启动说书人.bat`，它会检查依赖、构建并启动服务，然后按窗口提示打开浏览器。PowerShell 示例使用 `npm.cmd`，无需修改脚本执行策略。
+手动启动后打开 [说书人入口](http://localhost:3001/host)。代码和依赖未变化时，只需执行 `npm start`（Windows：`npm.cmd start`）。
 
 ## 使用
 
@@ -58,7 +63,7 @@ npm.cmd start
 
 ## 单人功能测试
 
-已安装依赖后启动；此命令会自动重新构建：
+双击根目录的 `启动单人测试.command`（macOS）或 `启动单人测试.bat`（Windows），等待自动打开调试入口。也可以使用命令启动，同样会检查依赖并构建：
 
 macOS：
 

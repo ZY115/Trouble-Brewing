@@ -32,6 +32,16 @@ function fixture(debug = true, capacity = 12) {
 }
 
 describe("explicit solo debug mode", () => {
+  it.each([false, true])("identifies the running mode in HTTP health (debug=%s)", async (debug) => {
+    const app = createApp(":memory:", { debug });
+    apps.push(app);
+    await new Promise<void>((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+    const port = (app.server.address() as { port: number }).port;
+    const response = await fetch(`http://127.0.0.1:${port}/api/health`);
+    expect(response.ok).toBe(true);
+    expect(await response.json()).toEqual({ ok: true, service: "clocktower-tb", debug });
+  });
+
   it("is unavailable in normal mode even to the host", () => {
     const f = fixture(false);
     expect(f.view().storyteller?.debug).toBeUndefined();

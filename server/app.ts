@@ -94,7 +94,7 @@ export function createApp(
     }, Math.max(0, due - Date.now()) + 20));
   };
   app.get("/api/health", (_req, res) =>
-    res.json({ ok: true, service: "clocktower-tb" }),
+    res.json({ ok: true, service: "clocktower-tb", debug: options.debug === true }),
   );
   app.get("/api/network", (_req, res) =>
     res.json({

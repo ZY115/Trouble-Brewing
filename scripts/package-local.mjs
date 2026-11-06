@@ -15,11 +15,14 @@ try {
     "THIRD_PARTY_NOTICES.md",
     "启动说书人.command",
     "启动说书人.bat",
+    "启动单人测试.command",
+    "启动单人测试.bat",
   ])
     cpSync(file, join(folder, file), { recursive: true });
   mkdirSync(join(folder, "scripts"));
   cpSync("scripts/launch.mjs", join(folder, "scripts/launch.mjs"));
   cpSync("scripts/debug.mjs", join(folder, "scripts/debug.mjs"));
+  cpSync("scripts/start.mjs", join(folder, "scripts/start.mjs"));
   mkdirSync(join(folder, "licenses"));
   cpSync(
     "licenses/LICENSE.tiny-grimoire",
