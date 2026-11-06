@@ -4,13 +4,83 @@ import { randomUUID } from "node:crypto";
 import type { Room } from "./game";
 import type { Command } from "../shared/commands";
 import type { NightPlanItem } from "../shared/types";
-import { nightTemplate } from "../shared/assistance";
+import { completedAction, nightTemplate } from "../shared/assistance";
 import { effectiveExecutions } from "./life";
 import { roleById, roleName } from "../shared/roles";
 
 function check(v: unknown, message: string): asserts v {
   if (!v) throw new Error(message);
 }
+
+const NOT_KILLED = "守鸦人今晚没有死亡，不用唤醒";
+const NO_EXECUTION = "今天白天没有人死于处决，不用唤醒";
+const DIED = "今晚已死亡，不再唤醒";
+const AUTOMATIC = new Set([NOT_KILLED, NO_EXECUTION, DIED]);
+
+export function refreshConditionalItems(r: Room, bump = true) {
+  if (r.phase !== "FIRST_NIGHT" && r.phase !== "OTHER_NIGHT") return;
+  const alive = (id: string) => !!r.seats.find((s) => s.id === id)?.alive;
+  const executionDeath = effectiveExecutions(r).some(
+    (e) => e.day === r.day - 1 && e.died && !e.voided,
+  );
+  let changed = false;
+  for (const item of r.nightPlan) {
+    if (item.night !== r.day || item.status !== "planned" || !item.seatId) continue;
+    if (item.retiredReason && !AUTOMATIC.has(item.retiredReason)) continue;
+    const reason =
+      item.roleId === "ravenkeeper"
+        ? r.deathEvents.some(
+            (d) => d.seatId === item.seatId && d.day === r.day && d.phase !== "DAY",
+          ) && !alive(item.seatId)
+          ? undefined
+          : NOT_KILLED
+        : !alive(item.seatId)
+          ? DIED
+          : item.roleId === "undertaker" && !executionDeath
+            ? NO_EXECUTION
+            : undefined;
+    if (item.retiredReason === reason) continue;
+    if (reason) item.retiredReason = reason;
+    else delete item.retiredReason;
+    changed = true;
+  }
+  if (changed && bump) r.planVersion++;
+}
+export function replanSeat(r: Room, seatId: string, from: string, to: string) {
+  if ((r.phase !== "FIRST_NIGHT" && r.phase !== "OTHER_NIGHT") || from === to) return;
+  const tonight = r.nightPlan.filter((i) => i.night === r.day);
+  if (!tonight.length) return;
+  const reason = `身份已改为${roleName(to)}`;
+  const stale = tonight.filter((i) => i.seatId === seatId && i.roleId === from && !i.retiredReason);
+  if (stale.length) r.planVersion++;
+  for (const item of stale) {
+    const action = r.actions.find((a) => a.id === item.actionId);
+    if (item.status === "planned" || (action && !completedAction(action))) item.retiredReason = reason;
+    if (action && !completedAction(action)) {
+      action.status = "CANCELLED";
+      action.resolutionReason = reason;
+      delete action.response;
+    }
+  }
+  const order = r.day === 1 ? FIRST_NIGHT_ORDER : OTHER_NIGHT_ORDER;
+  if (!order.includes(to) || tonight.some((i) => i.seatId === seatId && i.roleId === to && !i.retiredReason)) return;
+  const t = nightTemplate(to);
+  const item: NightPlanItem = {
+    id: randomUUID(),
+    night: r.day,
+    seatId,
+    roleId: to,
+    prompt: t.prompt,
+    targetCount: t.targetCount,
+    note: "",
+    status: "planned",
+  };
+  const at = r.nightPlan.findIndex((i) => i.night === r.day && i.roleId && order.indexOf(i.roleId) > order.indexOf(to));
+  if (at < 0) r.nightPlan.push(item);
+  else r.nightPlan.splice(at, 0, item);
+  r.planVersion++;
+}
+
 export function planCommand(
   r: Room,
   st: boolean,
@@ -57,15 +127,6 @@ export function planCommand(
       !r.nightPlan.some((i) => i.night === r.day),
       "本夜已有清单，请直接编辑或添加，避免重复",
     );
-    r.nightPlan.push(
-      make(
-        "",
-        "",
-        "核对本夜中毒、醉酒、保护与死亡状态",
-        0,
-        "仅说书人检查：手动更新或清除已到期标记，不自动应用能力。",
-      ),
-    );
     if (r.day === 1)
       r.nightPlan.push(
         make(
@@ -73,17 +134,13 @@ export function planCommand(
           "",
           "发放首夜邪恶队友信息与假身份",
           0,
-          "顶部可一键发送首夜邪恶信息与假身份；也可在线下完成。",
+          "",
         ),
       );
     const order = r.day === 1 ? FIRST_NIGHT_ORDER : OTHER_NIGHT_ORDER;
     for (const roleId of order) {
       if (roleId === "scarletwoman") {
         if (
-          !r.seats.some(
-            (s) =>
-              s.alive && r.assignments[s.id]?.actualRoleId === "scarletwoman",
-          ) &&
           !(
             r.deathEvents.some(
               (d) =>
@@ -103,7 +160,7 @@ export function planCommand(
             "scarletwoman",
             "核对猩红女郎继任",
             0,
-            "说书人检查项：有恶魔死亡时先核对死亡前人数、醉酒中毒与继任；不向玩家自动泄露信息。",
+            "",
           ),
         );
         continue;
@@ -124,25 +181,7 @@ export function planCommand(
         )
           continue;
         const t = nightTemplate(roleId);
-        const note =
-          roleId === "ravenkeeper"
-            ? "条件项：仅确认本夜死亡且能力触发时处理，否则跳过。"
-            : roleId === "undertaker"
-              ? "条件项：核对上一白天有效处决死亡；无信息时跳过。"
-              : roleId === "spy"
-                ? "魔典信息可在线下处理；不会自动向玩家发送整张魔典。"
-                : roleId === "empath"
-                  ? "先登记本夜真实死亡，再核对参考；未公布的死亡不会出现在玩家端。"
-                  : "请自行核对触发条件、醉酒中毒与特殊登记。";
-        r.nightPlan.push(
-          make(
-            seat.id,
-            roleId,
-            t.prompt,
-            t.targetCount,
-            `${roleName(roleId)}：${note}`,
-          ),
-        );
+        r.nightPlan.push(make(seat.id, roleId, t.prompt, t.targetCount, ""));
       }
     }
   } else if (c.type === "start_all_plan") {
@@ -163,7 +202,7 @@ export function planCommand(
             (e) => e.day === r.day - 1 && e.died && !e.voided,
           )),
     );
-    check(ready.length, "没有满足批量条件的玩家待办；条件项可单独核对后开始");
+    check(ready.length, "没有可以批量发起的玩家待办");
     for (const i of ready) startItem(r, i);
   } else if (c.type === "save_plan_item") {
     check(!c.seatId || r.seats.some((s) => s.id === c.seatId), "玩家不存在");
@@ -215,6 +254,7 @@ export function planCommand(
       }
     }
   }
+  refreshConditionalItems(r, false);
   r.planVersion++;
   return "更新可选夜间清单（未开始的建议不阻止天亮）";
 }

@@ -32,7 +32,6 @@ export interface RecapEntry {
   period: "DAY" | "NIGHT";
   kind: "action" | "life" | "role" | "condition" | "execution" | "manual";
   text: string;
-  hidden?: boolean;
 }
 export interface GameRecap {
   gameNo: number;

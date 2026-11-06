@@ -1,3 +1,4 @@
+import PlayerConnection from "./PlayerConnection";
 import { useState } from "react";
 import type { RoomView } from "../../shared/types";
 import { completedAction } from "../../shared/assistance";
@@ -5,10 +6,27 @@ import { choiceSentence } from "../../shared/action-choice";
 import { isEvil, roleById, roleName, TEAM_NAMES } from "../../shared/roles";
 import type { Send } from "../useRoom";
 import Conversation from "../components/Conversation";
+import Picker, { roleOptions } from "../ui/Picker";
 import ExecutionControl from "../components/ExecutionControl";
 import RulingCorrection from "../components/RulingCorrection";
+import { SlayerForm } from "./SlayerShot";
 
-/** Everything about one player in one place: role, markers, chat and night history. */
+function SlayerShot({ room, send, slayer }: { room: RoomView; send: Send; slayer: string }) {
+  const [open, setOpen] = useState(false);
+  if (room.publicRecords.some((r) => r.shooter === slayer)) return <p className="task-note">已经开过枪。</p>;
+  if (!open)
+    return (
+      <button className="slayer-open" onClick={() => setOpen(true)}>
+        登记猎手开枪…
+      </button>
+    );
+  return (
+    <div className="slayer-shot">
+      <SlayerForm room={room} send={send} shooter={slayer} onDone={() => setOpen(false)} />
+    </div>
+  );
+}
+
 export default function SeatPanel({
   room,
   send,
@@ -40,6 +58,7 @@ export default function SeatPanel({
   const toggle = (condition: "poisoned" | "protected" | "drunk") =>
     act({ type: "set_condition", seatId: seat.id, condition, value: !c?.[condition], expectedContextVersion: st.contextVersion });
   const herring = st.redHerring === seat.id;
+  const teller = Object.values(st.assignments).some((x) => x.perceivedRoleId === "fortuneteller");
   return (
     <section className="seat-panel" aria-label={`${seat.number} 号`}>
       <header className="seat-panel-head">
@@ -72,7 +91,7 @@ export default function SeatPanel({
           <button className={c?.drunk ? "on-drunk" : ""} aria-pressed={!!c?.drunk} disabled={busy} onClick={() => void toggle("drunk")}>
             醉酒
           </button>
-          {!isEvil(a?.actualRoleId ?? "") && (
+          {teller && !isEvil(a?.actualRoleId ?? "") && (
             <button
               aria-pressed={herring}
               disabled={busy}
@@ -94,6 +113,16 @@ export default function SeatPanel({
           </button>
         </div>
       )}
+      {playing && (
+        <Picker
+          label="自称"
+          value={st.claims[seat.id] ?? ""}
+          options={roleOptions()}
+          onChange={(v) => void act({ type: "set_claim", seatId: seat.id, roleId: v || null })}
+          placeholder="没有记录"
+        />
+      )}
+      <PlayerConnection room={room} seatId={seat.id} brief />
       {c?.note && <p className="task-note">备注：{c.note}</p>}
       <div className="task-links">
         {playing && (
@@ -102,6 +131,9 @@ export default function SeatPanel({
           </button>
         )}
       </div>
+      {room.phase === "DAY" && seat.alive && [a?.actualRoleId, a?.perceivedRoleId].includes("slayer") && (
+        <SlayerShot room={room} send={send} slayer={seat.id} />
+      )}
       {room.phase === "DAY" && <ExecutionControl room={room} seatId={seat.id} send={send} />}
 
       <div className="seat-panel-section">
@@ -119,10 +151,7 @@ export default function SeatPanel({
                 <span>{x.targets.length ? choiceSentence(x, room.seats, x.targets, "") : x.prompt}</span>
                 <b>{x.response ?? (completedAction(x) ? "已处理" : x.status === "REQUESTED" ? "等待选择" : "待回复")}</b>
                 {x.status === "DELIVERED" && (
-                  <details className="task-more">
-                    <summary>更正</summary>
-                    <RulingCorrection room={room} action={x} send={send} />
-                  </details>
+                  <RulingCorrection room={room} action={x} send={send} />
                 )}
               </li>
             ))}

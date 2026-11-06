@@ -1,7 +1,7 @@
 import { useState } from "react";
+import Picker, { roleOptions, seatOptions, valueOptions } from "../ui/Picker";
 import type { NightPlanItem, RoomView } from "../../shared/types";
 import type { Send } from "../useRoom";
-import { ROLES } from "../../shared/roles";
 import { localKey, useLocalState } from "../localState";
 import { completedAction } from "../../shared/assistance";
 
@@ -54,9 +54,6 @@ export default function NightPlanner({
   return (
     <details className="panel night-plan">
       <summary>本夜建议清单（可选） · {items.length} 项</summary>
-      <p className="muted">
-        仅说书人可见，可调整顺序、增删或跳过。点击“开始此项”才创建玩家待办；未开始的建议不阻止天亮。条件与先后顺序仍由你核对。
-      </p>
       {!items.length && (
         <button
           disabled={busy}
@@ -76,9 +73,6 @@ export default function NightPlanner({
       >
         全部开始玩家待办
       </button>
-      <p className="muted">
-        可并行收集选择；说书人仍按夜序处理效果和发送信息，猩红女郎等检查项不会发给玩家；未触发的守鸦人/送葬者及死亡玩家不批量开始，可核对后单独开始。
-      </p>
       <ol className="plan-items">
         {items.map((i, index) => {
           const action = room.actions.find((a) => a.id === i.actionId);
@@ -233,35 +227,20 @@ export default function NightPlanner({
             </p>
           )}
           <div className="form-grid">
-            <label className="field">
-              接收者
-              <select
-                aria-label="清单接收者"
-                value={draft.seatId}
-                onChange={(e) => setDraft({ ...draft, seatId: e.target.value })}
-              >
-                <option value="">仅说书人</option>
-                {room.seats.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.number} 号
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              参考角色
-              <select
-                value={draft.roleId}
-                onChange={(e) => setDraft({ ...draft, roleId: e.target.value })}
-              >
-                <option value="">自定义</option>
-                {ROLES.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Picker
+              label="接收者"
+              value={draft.seatId}
+              options={[{ value: "", label: "仅说书人" }, ...seatOptions(room.seats)]}
+              onChange={(v) => setDraft({ ...draft, seatId: v })}
+              clearable={false}
+            />
+            <Picker
+              label="参考角色"
+              value={draft.roleId}
+              options={[{ value: "", label: "自定义" }, ...roleOptions()]}
+              onChange={(v) => setDraft({ ...draft, roleId: v })}
+              clearable={false}
+            />
           </div>
           <label className="field">
             行动提示
@@ -273,21 +252,13 @@ export default function NightPlanner({
               onChange={(e) => setDraft({ ...draft, prompt: e.target.value })}
             />
           </label>
-          <label className="field">
-            选择目标数
-            <select
-              value={draft.targetCount}
-              onChange={(e) =>
-                setDraft({ ...draft, targetCount: Number(e.target.value) })
-              }
-            >
-              {[0, 1, 2].map((n) => (
-                <option value={n} key={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Picker
+            label="选择目标数"
+            value={String(draft.targetCount)}
+            options={valueOptions(["0", "1", "2"])}
+            onChange={(v) => setDraft({ ...draft, targetCount: Number(v) })}
+            clearable={false}
+          />
           <label className="field">
             仅说书人备注
             <input

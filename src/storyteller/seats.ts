@@ -14,7 +14,6 @@ export interface SeatOverlay {
   badges?: Record<string, string>;
 }
 
-/** The storyteller's grimoire: true roles, reminder marks and unpublished deaths. */
 export function storytellerSeats(
   room: RoomView,
   overlay: SeatOverlay = {},
@@ -28,6 +27,7 @@ export function storytellerSeats(
     if (c?.protected) marks.push({ text: "护", kind: "protect" });
     if (c?.drunk) marks.push({ text: "醉", kind: "drunk" });
     if (st.redHerring === s.id) marks.push({ text: "误", kind: "herring" });
+    if (st.claims[s.id]) marks.push({ text: `称${roleGlyph(st.claims[s.id])}`, kind: "tag" });
     if (s.alive !== st.publishedAlive[s.id])
       marks.push({ text: s.alive ? "待公布" : "未公布", kind: "dead" });
     marks.push(...(overlay.marks?.[s.id] ?? []));
@@ -49,6 +49,3 @@ export function storytellerSeats(
     };
   });
 }
-
-export const seatNumber = (room: RoomView, id?: string) =>
-  room.seats.find((s) => s.id === id)?.number;

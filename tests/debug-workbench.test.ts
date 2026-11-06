@@ -24,11 +24,10 @@ it("navigates only synthetic players and ignores previous-night or completed act
   expect(debugPlayers(r)).toEqual([]);
   expect(nextWaitingPlayer(r, "")).toBeUndefined();
 });
-it("can locate the current counted voter, without letting debug controls open a real player", () => {
+it("shows each simulated player's hand during a vote", () => {
   const r = room(); r.phase = "DAY";
-  r.liveVote = { id: "vote", day: 2, nominator: "a", nominee: "c", counted: {}, deadAtVote: [], status: "COUNTING", order: ["a", "b", "c"], cursor: 2, hands: { c: true } };
-  expect(nextWaitingPlayer(r, "a")).toBe("c");
+  r.liveVote = { id: "vote", day: 2, nominator: "a", nominee: "c", counted: {}, deadAtVote: [], status: "OPEN", order: ["a", "b", "c"], hands: { c: true } };
   expect(debugPlayerStatus(r, "c")).toBe("已举手");
-  r.liveVote!.cursor = 1;
+  expect(debugPlayerStatus(r, "b")).toBe("未举手");
   expect(nextWaitingPlayer(r, "a")).toBeUndefined();
 });

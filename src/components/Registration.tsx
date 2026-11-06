@@ -25,64 +25,68 @@ export default function Registration({
       {status.duplicateNumbers.length > 0 ? (
         <div className="error" role="alert">
           号码重复：{status.duplicateNumbers.join("、")}{" "}
-          号。请相关玩家修改号码，暂不发身份。
+          号，请改号码。
         </div>
       ) : (
         <p>
           {status.open
-            ? "等待全部玩家登记，号码无重复后自动发身份。"
-            : "入场尚未开放，等待说书人确认配板。"}
+            ? "等大家登记好，号码不重复就自动发身份。"
+            : "还没开放入场，等说书人配板。"}
         </p>
       )}
-      {status.missingNumbers.length > 0 && (
+      {st && status.missingNumbers.length > 0 && (
         <p className="muted">未登记号码：{status.missingNumbers.join("、")}</p>
       )}
       <div className="registration-numbers">
         {Array.from({ length: room.capacity }, (_, i) => i + 1).map((n) => {
           const count = room.seats.filter((s) => s.number === n).length;
-          return (
-            <div
+          const mine = !st && n === me?.number;
+          const label = st
+            ? count > 1 ? `${count} 人重号` : count ? "已登记" : "未登记"
+            : mine ? "我" : count > 1 ? `${count} 人重号` : count ? "已有人" : "";
+          const className = [count > 1 ? "conflict" : count ? "registered" : "", mine ? "mine" : ""].join(" ");
+          return !st && room.self?.canChangeNumber && !mine ? (
+            <button
+              type="button"
               key={n}
-              className={count > 1 ? "conflict" : count ? "registered" : ""}
+              className={className}
+              aria-pressed={number === String(n)}
+              onClick={() => setNumber(number === String(n) ? String(me?.number ?? "") : String(n))}
             >
               <strong>{n}</strong>
-              <small>
-                {count > 1 ? `${count} 人重号` : count ? "已登记" : "未登记"}
-              </small>
+              <small>{label}</small>
+            </button>
+          ) : (
+            <div key={n} className={className}>
+              <strong>{n}</strong>
+              <small>{label}</small>
             </div>
           );
         })}
       </div>
-      {!st && room.self?.canChangeNumber && (
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setBusy(true);
-            await send({ type: "move_seat", number: Number(number) });
-            setBusy(false);
-          }}
-        >
-          <label className="field">
-            修改我的号码
-            <input
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={room.capacity}
-              step={1}
-              required
-              value={number}
-              onChange={(e) => setNumber(e.target.value)}
-            />
-          </label>
-          <button disabled={busy || !number}>保存号码</button>
-        </form>
+      {!st && room.self?.canChangeNumber && number && number !== String(me?.number) && (
+        <div className="registration-move">
+          <button
+            className="primary"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              await send({ type: "move_seat", number: Number(number) });
+              setBusy(false);
+            }}
+          >
+            改为 {number} 号
+          </button>
+          <button disabled={busy} onClick={() => setNumber(String(me?.number ?? ""))}>
+            取消
+          </button>
+        </div>
       )}
       {st && room.seats.length > 0 && (
         <details>
           <summary>管理异常登记</summary>
           <p className="muted">
-            每条登记对应一个浏览器会话。移除后，该浏览器需要重新登记。
+            移除后，这台手机要重新登记。
           </p>
           <div className="registration-entries">
             {room.seats.map((seat, i) => (
@@ -103,7 +107,7 @@ export default function Registration({
         <div className="modal-backdrop">
           <div className="modal">
             <h2>移除这条登记？</h2>
-            <p>将撤销该浏览器的房间访问权限。玩家可重新扫码登记。</p>
+            <p>这台手机会退出房间，之后可以重新扫码登记。</p>
             <div className="action-buttons">
               <button onClick={() => setRemove("")}>取消</button>
               <button

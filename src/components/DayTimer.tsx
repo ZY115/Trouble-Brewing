@@ -53,9 +53,9 @@ export default function DayTimer({
             : "白天计时"}
         </strong>
         {expired ? (
-          <span role="alert">时间到 · 可继续讨论，游戏不会自动推进</span>
+          <span role="alert">时间到</span>
         ) : (
-          <span>{timer?.endsAt === null ? "已暂停 · " : ""}仅提醒说书人</span>
+          timer?.endsAt === null && <span>已暂停</span>
         )}
       </div>
       <div className="action-buttons">

@@ -41,19 +41,19 @@ export function endReview(r: Room): EndReview {
           ? {
               id: "succession",
               status: "check",
-              text: "恶魔已死亡，但猩红女郎继任或小恶魔自杀传位仍待处理，暂不建议善良获胜。",
+              text: "恶魔已死，但还有继任没处理。",
             }
           : !death
             ? {
                 id: "no-demon-unverified",
                 status: "check",
-                text: "当前无存活恶魔，但缺少死亡记录；请核对身份调整、继任和旧存档。",
+                text: "场上没有存活的恶魔，但缺少死亡记录，请核对。",
               }
             : {
                 id: "no-demon",
                 status: "met",
                 winner: "good",
-                text: "当前无存活恶魔，未发现待处理的继任候选，建议善良胜利；请确认没有遗漏线下传位。",
+                text: "恶魔已死且没有人继任，善良获胜。",
               },
       );
     }
@@ -62,7 +62,7 @@ export function endReview(r: Room): EndReview {
         id: "two-alive",
         status: "met",
         winner: "evil",
-        text: `仅剩 ${alive.length} 人存活，且仍有存活恶魔，建议邪恶胜利。`,
+        text: `只剩 ${alive.length} 人存活且恶魔还活着，邪恶获胜。`,
       });
     for (const execution of effectiveExecutions(r).filter(
       (e) => e.died && !e.voided && e.actualRoleId === "saint",
@@ -74,8 +74,8 @@ export function endReview(r: Room): EndReview {
         winner: execution.impaired === false ? "evil" : undefined,
         text:
           execution.impaired === false
-            ? `第 ${execution.day} 天圣徒因处决死亡，当时未标记中毒或醉酒，建议邪恶胜利。`
-            : `第 ${execution.day} 天圣徒因处决死亡，但缺少当时中毒/醉酒快照，请核对后裁定。`,
+            ? `第 ${execution.day} 天健康的圣徒被处决，邪恶获胜。`
+            : `第 ${execution.day} 天圣徒被处决，记录里没有当时是否中毒，请核对。`,
       });
     }
     if (
@@ -88,7 +88,7 @@ export function endReview(r: Room): EndReview {
         id: `mayor-ended:${r.dayEndVictory.day}`,
         status: "met",
         winner: "good",
-        text: `第 ${r.dayEndVictory.day} 天结束时，三人存活、健康清醒的镇长在场且当天无人被处决，建议善良胜利。`,
+        text: `第 ${r.dayEndVictory.day} 天只剩三人、镇长健康且当天无人被处决，善良获胜。`,
       });
     else if (
       r.phase === "DAY" &&
@@ -106,7 +106,7 @@ export function endReview(r: Room): EndReview {
           id: `mayor:${mayor.id}`,
           status: "end_day",
           winner: "good",
-          text: "三人存活、健康清醒的镇长在场且今日尚无处决；只有说书人确认今天结束且不再处决时，才建议善良胜利。",
+          text: "只剩三人、镇长健康且今天还没处决。今天就此结束的话，善良获胜。",
         });
     }
   }
@@ -132,7 +132,6 @@ export function endReview(r: Room): EndReview {
     suggestedWinner: winners.length === 1 ? winners[0] : undefined,
     pendingActions,
     activeVote,
-    // Chat/optional notes do not invalidate confirmation. Relevant game changes do.
     key: createHash("sha256")
       .update(
         JSON.stringify([

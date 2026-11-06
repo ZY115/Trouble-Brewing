@@ -26,7 +26,6 @@ const infoRoles = new Set([
   "ravenkeeper",
 ]);
 
-/** Record actual mutations, not guessed effects from player selections or replies. */
 export function captureRecap(r: Room, before: Snapshot, c: Command) {
   if (
     !["DAY", "FIRST_NIGHT", "OTHER_NIGHT"].includes(before.phase) ||
@@ -47,46 +46,49 @@ export function captureRecap(r: Room, before: Snapshot, c: Command) {
   };
   const number = (id: string) =>
     `${before.seats.find((s) => s.id === id)?.number ?? "?"} 号`;
+  const who = (seatId: string) => {
+    const assignment = before.assignments[seatId];
+    const actual = assignment?.actualRoleId ?? "";
+    const perceived = assignment?.perceivedRoleId ?? "";
+    const believed = perceived && perceived !== actual ? `（以为自己是${roleName(perceived)}）` : "";
+    const condition = before.conditions[seatId];
+    const state = condition?.poisoned ? "（中毒）" : condition?.drunk ? "（醉酒）" : "";
+    return `${number(seatId)}${roleName(actual)}${believed}${state}`;
+  };
   for (const a of r.actions) {
     const old = before.actions.find((old) => old.id === a.id);
     if (a.status !== "DELIVERED" || old?.status === "DELIVERED") continue;
-    const assignment = before.assignments[a.seatId];
-    const actor = `${number(a.seatId)}（${roleName(assignment?.actualRoleId ?? "")}）`;
+    const perceived = before.assignments[a.seatId]?.perceivedRoleId ?? "";
+    const actor = who(a.seatId);
     const targets = a.targets.map(number).join("、");
-    const impaired =
-      before.conditions[a.seatId]?.poisoned ||
-      before.conditions[a.seatId]?.drunk ||
-      assignment?.actualRoleId === "drunk";
-    const label = (
-      {
-        inspect: "查验",
-        poison: "选择下毒",
-        protect: "选择保护",
-        kill: "选择击杀",
-        master: "选择主人",
-        select: "选择",
-      } as Record<string, string>
-    )[a.choiceKind ?? "select"];
-    let text = `${actor}${targets ? `${label} ${targets}` : "获得夜间信息"}。`;
-    if (
-      c.type === "apply_action" &&
-      c.actionId === a.id &&
-      c.effect !== "none"
-    ) {
-      const effect = {
-        poison: "标记中毒",
-        protect: "标记保护",
-        kill: "登记死亡",
-      }[c.effect];
-      text += `说书人已为 ${targets}${effect}${c.force ? "（手动覆盖裁定）" : ""}。`;
-    } else if (["poison", "protect", "kill"].includes(a.choiceKind ?? ""))
-      text += "此行动仅确认收到，未在行动上登记实际效果。";
-    if (impaired) text += "行动时存在中毒或醉酒，能力/信息需按说书人裁定。";
-    const includeResponse = infoRoles.has(
-      a.referenceRoleId ?? assignment?.perceivedRoleId ?? "",
-    );
-    if (includeResponse && a.reference?.actual)
-      text += `当时实际参考：${a.reference.actual}`;
+    const applied = c.type === "apply_action" && c.actionId === a.id ? c : undefined;
+    const ruled = applied?.force ? "（说书人裁定）" : "";
+    const includeResponse = infoRoles.has(a.referenceRoleId ?? perceived);
+    let text: string;
+    if (includeResponse) text = `${actor}${targets ? `查验 ${targets}，` : ""}`;
+    else if (a.choiceKind === "poison")
+      text = applied?.effect === "poison" ? `${actor}毒了 ${targets}${ruled}。` : `${actor}想毒 ${targets}，没有生效。`;
+    else if (a.choiceKind === "protect")
+      text = applied?.effect === "protect" ? `${actor}保护了 ${targets}${ruled}。` : `${actor}想保护 ${targets}，没有生效。`;
+    else if (a.choiceKind === "kill") {
+      const target = a.targets[0];
+      const targetRole = before.assignments[target]?.actualRoleId;
+      const why = before.conditions[target]?.protected
+        ? "被保护"
+        : targetRole === "soldier"
+          ? "是士兵"
+          : targetRole === "mayor"
+            ? "是镇长"
+            : "";
+      text =
+        target === a.seatId
+          ? `${actor}选择了自己${applied?.effect === "kill" ? "，自杀身亡" : ""}${ruled}。`
+          : applied?.effect === "kill"
+            ? `${actor}杀死了 ${targets}${ruled}。`
+            : `${actor}袭击 ${targets}，${targets}${why ? `${why}，` : ""}没有死亡。`;
+    } else if (a.choiceKind === "master") text = `${actor}选择 ${targets}作为主人。`;
+    else if ((a.referenceRoleId ?? perceived) === "spy") text = `${actor}查看了魔典。`;
+    else text = `${actor}${targets ? `选择了 ${targets}` : "行动了"}。`;
     log.push({
       day: a.night,
       period: "NIGHT",
@@ -95,6 +97,7 @@ export function captureRecap(r: Room, before: Snapshot, c: Command) {
       text,
       actionId: a.id,
       includeResponse,
+      truth: includeResponse ? a.reference?.truth : undefined,
     });
   }
   for (const seat of r.seats) {
@@ -109,18 +112,21 @@ export function captureRecap(r: Room, before: Snapshot, c: Command) {
     )
       add(
         "role",
-        `${number(seat.id)} 从 ${roleName(prev.actualRoleId)} 变为 ${roleName(next.actualRoleId)}${next.actualRoleId !== next.perceivedRoleId ? `，认知身份为 ${roleName(next.perceivedRoleId)}` : ""}${c.type === "promote_imp" ? "（恶魔继任）" : "（说书人调整）"}。`,
+        c.type === "promote_imp"
+          ? `${number(seat.id)}${roleName(prev.actualRoleId)}继任成为${roleName(next.actualRoleId)}。`
+          : `${number(seat.id)}由${roleName(prev.actualRoleId)}变为${roleName(next.actualRoleId)}${next.actualRoleId !== next.perceivedRoleId ? `（以为自己是${roleName(next.perceivedRoleId)}）` : ""}（说书人调整）。`,
       );
     if (
       old &&
       old.alive !== seat.alive &&
       c.type !== "execute_player" &&
       c.type !== "correct_execution" &&
+      c.type !== "slayer_shot" &&
       !(c.type === "apply_action" && c.effect === "kill")
     )
       add(
         "life",
-        `${number(seat.id)} 被说书人登记为${seat.alive ? "存活" : "死亡"}；具体原因以说书人说明为准。`,
+        `${number(seat.id)}${seat.alive ? "被登记为存活" : "死亡"}（${c.type === "set_alive" && c.reason ? c.reason : "说书人登记"}）。`,
       );
     for (const condition of ["poisoned", "protected", "drunk"] as const) {
       const was = !!before.conditions[seat.id]?.[condition],
@@ -135,10 +141,15 @@ export function captureRecap(r: Room, before: Snapshot, c: Command) {
         continue;
       add(
         "condition",
-        `说书人${now ? "标记" : "解除"} ${number(seat.id)} 的${{ poisoned: "中毒", protected: "保护", drunk: "醉酒" }[condition]}状态。`,
+        `${number(seat.id)}被说书人${now ? "标记" : "解除"}${{ poisoned: "中毒", protected: "保护", drunk: "醉酒" }[condition]}。`,
       );
     }
   }
+  if (c.type === "slayer_shot")
+    add(
+      "action",
+      `${who(c.shooter)}向 ${number(c.target)}${roleName(before.assignments[c.target]?.actualRoleId ?? "")}开枪，${c.kill ? `${number(c.target)}死亡` : "没有发生任何事"}。`,
+    );
   if (c.type === "execute_player") {
     const execution = r.executions.at(-1)!;
     add("execution", "", `execution:${execution.id}`);
@@ -156,19 +167,21 @@ export function captureRecap(r: Room, before: Snapshot, c: Command) {
     r.recapVersion = (r.recapVersion ?? 0) + 1;
 }
 
-export function buildRecap(r: Room, includeHidden = false): GameRecap {
+export function buildRecap(r: Room): GameRecap {
   const entries: RecapEntry[] = (r.recapLog ?? []).map(
-    ({ actionId, includeResponse, ...entry }) => {
+    ({ actionId, includeResponse, truth, ...entry }) => {
       const action = actionId
         ? r.actions.find((a) => a.id === actionId)
         : undefined;
+      if (!includeResponse) return entry;
+      const response = action?.status === "DELIVERED" ? (action.response ?? "") : "";
       return {
         ...entry,
         text:
-          entry.text +
-          (includeResponse && action?.status === "DELIVERED"
-            ? `；最终告知玩家：${action.response ?? ""}${(action.responseVersion ?? 1) > 1 ? "（已更正）" : ""}`
-            : ""),
+          `${entry.text}得知「${response}」` +
+          ((action?.responseVersion ?? 1) > 1 ? "（已更正）" : "") +
+          (truth && truth !== response ? `，真实应为「${truth}」` : "") +
+          "。",
       };
     },
   );
@@ -185,7 +198,13 @@ export function buildRecap(r: Room, includeHidden = false): GameRecap {
       day: execution.day,
       period: "DAY",
       kind: "execution",
-      text: `${r.seats.find((s) => s.id === execution.seatId)?.number ?? "?"} 号（${roleName(execution.actualRoleId)}）${execution.voided ? "的处决记录已撤销" : execution.died ? "被处决并死亡" : "被处决，但未因此死亡"}。`,
+      text: `${r.seats.find((s) => s.id === execution.seatId)?.number ?? "?"} 号${roleName(execution.actualRoleId)}${
+        execution.voided
+          ? "的处决记录已撤销"
+          : execution.nominee
+            ? `提名 ${r.seats.find((s) => s.id === execution.nominee)?.number ?? "?"} 号${roleName(r.assignments[execution.nominee]?.actualRoleId ?? "")}后立即被处决${execution.died ? "" : "，但没有死亡"}`
+            : `被处决${execution.reason ? `（${execution.reason}）` : ""}${execution.died ? "" : "，但没有死亡"}`
+      }。`,
     };
     const index = entries.findIndex((e) => e.id === id);
     if (index < 0) entries.push(entry);
@@ -197,11 +216,11 @@ export function buildRecap(r: Room, includeHidden = false): GameRecap {
     else entries[index] = edit;
   }
   const limitations = [
-    "只汇总已登记的关键行动和裁定；未记录的线下行动不会自动推断。私聊、私人笔记和全部投票明细不列入复盘。",
+    "只包含登记过的行动和裁定。",
   ];
   if (!r.initialAssignments)
     limitations.push(
-      "本局缺少开局身份快照，不能完整还原旧版本的身份变化和历史行动；以下为已记录内容。 ",
+      "本局缺少开局身份记录，身份变化可能不完整。",
     );
   return {
     gameNo: r.gameNo,
@@ -218,7 +237,7 @@ export function buildRecap(r: Room, includeHidden = false): GameRecap {
       })),
     redHerring: r.redHerring,
     entries: entries
-      .filter((e) => includeHidden || !e.hidden)
+      .map(({ hidden: _old, ...e }: RecapEntry & { hidden?: boolean }) => e)
       .sort(
         (a, b) =>
           a.day - b.day ||
@@ -238,7 +257,7 @@ export function editRecap(
     throw new Error("复盘已有新版本，请重新载入后修改");
   if (c.day > r.day) throw new Error("不能记录尚未到来的日期");
   const existing = c.entryId
-    ? buildRecap(r, true).entries.find((e) => e.id === c.entryId)
+    ? buildRecap(r).entries.find((e) => e.id === c.entryId)
     : undefined;
   if (c.entryId && !existing) throw new Error("复盘条目不存在");
   const edit: RecapEntry = {
@@ -247,7 +266,6 @@ export function editRecap(
     period: c.period,
     kind: existing?.kind ?? "manual",
     text: c.text,
-    hidden: c.hidden,
   };
   r.recapEdits = [
     ...(r.recapEdits ?? []).filter((e) => e.id !== edit.id),

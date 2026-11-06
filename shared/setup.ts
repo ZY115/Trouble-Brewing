@@ -98,7 +98,6 @@ export function defaultBluffs(roleIds: string[], drunkAs: string) {
     .map((r) => r.id);
 }
 
-/** Random legal composition, not a balance or win-rate guarantee. */
 export function randomSetup(
   count: number,
   random: () => number = Math.random,

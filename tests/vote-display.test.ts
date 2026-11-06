@@ -32,7 +32,6 @@ const ballot = (overrides: Partial<LiveVote> = {}): LiveVote => ({
   order: ["c", "a", "b"],
   hands: {},
   counted: { a: true, b: false, c: false },
-  cursor: 3,
   status: "FINISHED",
   deadAtVote: ["c"],
   eligibleAtVote: ["a", "b"],
@@ -86,15 +85,13 @@ describe("public display uses the latest ballot across phone and offline records
 
   it("shows the active phone ballot instead of previous offline results", () => {
     const offline = record("offline", ["b"]);
-    const live = ballot({
-      status: "COUNTING",
-      cursor: 1,
-      counted: { c: false },
-      hands: { a: true },
-    });
-    expect(ballotStatus(live, [offline], "a")).toBe("已举手 · 待计票");
-    expect(ballotStatus(live, [offline], "b")).toBe("未举手 · 待计票");
-    expect(ballotStatus(live, [offline], "c")).toBe("无可用死者票");
+    const open = ballot({ status: "OPEN", counted: {}, hands: { a: true } });
+    expect(ballotStatus(open, [offline], "a")).toBe("已举手");
+    expect(ballotStatus(open, [offline], "b")).toBe("未举手");
+    expect(ballotStatus(open, [offline], "c")).toBe("无可用死者票");
+    const locked = ballot({ status: "COUNTING", counted: { a: true, b: false, c: false }, hands: { a: true } });
+    expect(ballotStatus(locked, [offline], "a")).toBe("已举手 · 已锁定");
+    expect(ballotStatus(locked, [offline], "b")).toBe("未举手 · 已锁定");
   });
 
   it("shows latest valid results after cancellation, or cancellation when none exist", () => {

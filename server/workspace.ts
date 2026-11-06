@@ -9,7 +9,6 @@ import type {
   WorkStatus,
 } from "../shared/workspace";
 
-// Build projections from the already authorized view, never raw assignments/notes.
 export function playerWorkspace(view: RoomView): PlayerWorkspace {
   const notes: NoteSummary[] = view.notebook
     .flatMap((entry) => {

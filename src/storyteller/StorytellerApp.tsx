@@ -3,7 +3,8 @@ import type { RoomView, Session } from "../../shared/types";
 import { PHASE_NAMES } from "../../shared/types";
 import { roleName } from "../../shared/roles";
 import type { Send } from "../useRoom";
-import { useUnread } from "../localState";
+import { useLocalState, useUnread } from "../localState";
+import { draftVotes, voteEditKey, type VoteEdits } from "./voteDraft";
 import PhaseControls from "../components/PhaseControls";
 import StorytellerTable, { PlayerEditor } from "../components/StorytellerTable";
 import NightPanel from "../components/NightPanel";
@@ -13,6 +14,11 @@ import LobbyStage from "./LobbyStage";
 import MoreDrawer from "./MoreDrawer";
 import SeatPanel from "./SeatPanel";
 import { storytellerSeats } from "./seats";
+import RoundHistory from "../components/RoundHistory";
+import { advancedHere } from "./phaseIntent";
+import TimerChip from "./TimerChip";
+import DayTimer from "../components/DayTimer";
+import { away, AWAY_SHORT } from "./PlayerConnection";
 import {
   currentTask,
   dayTasks,
@@ -40,13 +46,14 @@ import { RecapFacts, RecapTimeline, ResultBanner } from "../components/Recap";
 const PublicPanel = lazy(() => import("../components/PublicPanel"));
 const SetupPanel = lazy(() => import("../components/SetupPanel"));
 
-type DrawerId = "" | "table" | "log" | "setup" | "plan" | "more";
+type DrawerId = "" | "table" | "log" | "setup" | "plan" | "more" | "timer";
 const TITLES: Record<Exclude<DrawerId, "">, string> = {
   table: "总体表",
   log: "公开记录",
   setup: "配板工坊",
   plan: "编辑夜序",
   more: "更多",
+  timer: "白天计时",
 };
 
 const MOON = "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z";
@@ -93,7 +100,11 @@ function taskLabel(room: RoomView, t: Task) {
 
 function taskState(room: RoomView, t: Task) {
   if (taskDone(room, t)) return t.kind === "plan" && t.item.status === "skipped" ? "跳过" : "✓";
-  if (taskWaiting(t)) return "等待选择";
+  if (taskWaiting(t)) {
+    const a = t.kind === "plan" ? t.action : t.kind === "action" ? t.action : undefined;
+    const off = a ? away(room, a.seatId) : "";
+    return off ? `等待选择 · ${AWAY_SHORT[off]}` : "等待选择";
+  }
   if (t.kind === "plan" && t.item.status === "planned" && t.item.seatId) return "未发出";
   return "";
 }
@@ -119,7 +130,15 @@ export default function StorytellerApp({
 }) {
   const st = room.storyteller!;
   const [drawer, setDrawer] = useState<DrawerId>("");
+  useEffect(() => {
+    setDrawer((open) => open === "timer" ? "" : open);
+  }, [room.gameNo, st.phaseVersion]);
+  const [logPrefill, setLogPrefill] = useState<{ nominator: string; nominee: string } | null>(null);
   const [seatId, setSeatId] = useState("");
+  const ended = room.phase === "ENDED";
+  useEffect(() => {
+    if (ended) setSeatId("");
+  }, [ended]);
   const [editing, setEditing] = useState("");
   const [focus, setFocus] = useState("");
   const [dismissed, setDismissed] = useState<{ phase: number; ids: string[] }>({ phase: st.phaseVersion, ids: [] });
@@ -136,17 +155,44 @@ export default function StorytellerApp({
   const tasks = night ? nightTasks(room) : day ? dayTasks(room) : [];
   const current = tasks.length ? currentTask(room, tasks, dismissedIds) : undefined;
   const focused = tasks.find((t) => t.id === focus) ?? current;
-  // When the next card replaces a finished one, bring its title back under the top bar.
+  const phaseSeen = useRef(st.phaseVersion);
+  const latest = useRef({ room, send });
+  latest.current = { room, send };
+  const [voteEdits] = useLocalState<VoteEdits>(voteEditKey(room, room.liveVote?.id ?? "none"), {});
+  const draft = room.liveVote ? draftVotes(room, room.liveVote, voteEdits) : null;
+  const [restore, setRestore] = useState<{ items: typeof st.staleConditions; label: string } | null>(null);
+  useEffect(() => {
+    if (st.phaseVersion === phaseSeen.current) return;
+    const from = phaseSeen.current;
+    phaseSeen.current = st.phaseVersion;
+    const done = advancedHere(from);
+    if (!done) return;
+    void done.then(async (advancedOk) => {
+      const { room: now, send: sendNow } = latest.current;
+      const items = now.storyteller!.staleConditions;
+      if (!advancedOk || !items.length || !["FIRST_NIGHT", "OTHER_NIGHT", "DAY"].includes(now.phase)) return;
+      if (await sendNow({ type: "clear_expired_conditions", expectedContextVersion: now.storyteller!.contextVersion }))
+        setRestore({
+          items,
+          label: items.map((x) => `${num(now, x.seatId)} 号${x.condition === "poisoned" ? "中毒" : "受保护"}`).join("、"),
+        });
+    });
+  }, [st.phaseVersion]);
+  useEffect(() => {
+    if (!restore) return;
+    const timer = setTimeout(() => setRestore(null), 10000);
+    return () => clearTimeout(timer);
+  }, [restore]);
   const side = useRef<HTMLElement>(null);
   useEffect(() => {
     const card = side.current?.firstElementChild;
-    const top = card?.getBoundingClientRect().top ?? 0;
-    if (card && top < 72) window.scrollBy({ top: top - 84, behavior: "smooth" });
+    if (!card) return;
+    const { top } = card.getBoundingClientRect();
+    if (top < 72 || top > window.innerHeight - 160) window.scrollBy({ top: top - 84, behavior: "smooth" });
   }, [focused?.id, seatId]);
   const steps = tasks.filter((t) => t.kind === "plan" || t.kind === "action");
   const stepsDone = steps.filter((t) => taskDone(room, t)).length;
 
-  // What the focused task is about, drawn on the grimoire.
   const rings: Record<string, SeatRing[]> = {};
   const marks: Record<string, { text: string; kind: MarkKind }[]> = {};
   const ring = (id: string | undefined, r: SeatRing) => {
@@ -167,17 +213,25 @@ export default function StorytellerApp({
   if (day && vote && ["OPEN", "COUNTING"].includes(vote.status)) {
     ring(vote.nominator, "actor");
     ring(vote.nominee, "target");
-    if (vote.status === "COUNTING") ring(vote.order[vote.cursor], "focus");
     lines = [{ from: num(room, vote.nominator) ?? 0, to: num(room, vote.nominee) ?? 0 }];
     for (const s of room.seats) {
-      if (s.id in vote.counted)
-        marks[s.id] = [vote.counted[s.id] ? { text: "票", kind: "vote" } : { text: "弃", kind: "tag" }];
-      else if (vote.hands[s.id]) marks[s.id] = [{ text: "举", kind: "hand" }];
+      if (vote.status === "COUNTING") {
+        if (draft!.votes(s.id)) marks[s.id] = [{ text: "票", kind: "vote" }];
+      } else if (vote.hands[s.id]) marks[s.id] = [{ text: "举", kind: "hand" }];
     }
   } else if (day && (picking || nominee)) {
     ring(nominator, "actor");
     ring(nominee, "target");
     if (nominator && nominee) lines = [{ from: num(room, nominator) ?? 0, to: num(room, nominee) ?? 0, dashed: true }];
+  }
+  const awaited = night
+    ? room.actions.filter((a) => a.night === room.day && a.status === "REQUESTED").map((a) => a.seatId)
+    : vote?.status === "OPEN"
+      ? vote.order
+      : [];
+  for (const id of awaited) {
+    const off = away(room, id);
+    if (off) marks[id] = [...(marks[id] ?? []), { text: AWAY_SHORT[off], kind: "tag" }];
   }
   if (seatId) ring(seatId, "focus");
   const badges = Object.fromEntries(
@@ -187,7 +241,7 @@ export default function StorytellerApp({
   function tapSeat(id: string) {
     if (day && picking) {
       if (!nominator) setNominator(id);
-      else if (id !== nominator) {
+      else {
         setNominee(id);
         setPicking(false);
       }
@@ -200,6 +254,7 @@ export default function StorytellerApp({
     setNominator("");
     setNominee("");
   };
+  useEffect(resetNomination, [st.phaseVersion]);
 
   function renderTask(t: Task) {
     switch (t.kind) {
@@ -235,7 +290,7 @@ export default function StorytellerApp({
       case "vote":
         return <VoteTask key={t.id} room={room} send={send} />;
       case "verdict":
-        return <VerdictTask key={t.id} room={room} send={send} onDismiss={() => dismiss(t.id)} />;
+        return <VerdictTask key={t.id} room={room} send={send} recordId={t.recordId} onDismiss={() => dismiss(t.id)} />;
       case "nominate":
         return (
           <NominateTask
@@ -250,6 +305,7 @@ export default function StorytellerApp({
             }}
             onReset={resetNomination}
             openLog={() => {
+              setLogPrefill(nominator && nominee ? { nominator, nominee } : null);
               resetNomination();
               setDrawer("log");
             }}
@@ -299,10 +355,11 @@ export default function StorytellerApp({
         {!connected && (
           <span className="conn offline">
             <i />
-            重新连接中
+            同步中…
           </span>
         )}
         <span className="spacer" />
+        <TimerChip room={room} onOpen={() => setDrawer("timer")} />
         {firstUnread && (
           <button className="top-chip accent" onClick={() => setSeatId(firstUnread.id)}>
             私聊 {unread.messages.length}
@@ -340,6 +397,31 @@ export default function StorytellerApp({
         {(night || day) && <PhaseControls room={room} send={send} part="button" />}
       </header>
 
+      {restore && !st.undo && (
+        <div className="undo-toast" role="status">
+          <span>已清除过期标记：{restore.label}</span>
+          <button
+            onClick={async () => {
+              const items = restore.items;
+              setRestore(null);
+              for (const x of items) {
+                const before = latest.current.room.storyteller!.contextVersion;
+                await latest.current.send({ type: "set_condition", seatId: x.seatId, condition: x.condition, value: true, expectedContextVersion: before });
+                for (let i = 0; i < 20 && latest.current.room.storyteller!.contextVersion === before; i++)
+                  await new Promise((r) => setTimeout(r, 50));
+              }
+            }}
+          >
+            恢复
+          </button>
+        </div>
+      )}
+      {st.undo && (
+        <div className="undo-toast" role="status">
+          <span>{st.undo.label}</span>
+          <button onClick={() => void send({ type: "undo_private_edit", expectedRevision: st.undo!.revision })}>撤销</button>
+        </div>
+      )}
       {error && (
         <div className="st-alerts">
           <div role="alert" className="error">
@@ -370,14 +452,14 @@ export default function StorytellerApp({
                     <span className="eyebrow">{room.phase === "ENDED" ? "本局已结束" : phaseLabel}</span>
                     <span className="board-count">{living}</span>
                     <span className="muted" style={{ fontSize: 13 }}>
-                      人存活{day ? ` · 过半 ${Math.ceil(living / 2)} 票` : ""}
+                      人存活{day ? ` · 处决至少 ${Math.ceil(living / 2)} 票` : ""}
                     </span>
                   </>
                 }
               />
             </div>
             <p className="board-hint">
-              {picking ? "依次点提名者、被提名者" : "点座位查看这名玩家：身份、标记、私聊、行动"}
+              {picking ? "依次点提名者、被提名者" : "点座位查看这名玩家"}
             </p>
           </section>
 
@@ -401,7 +483,6 @@ export default function StorytellerApp({
                   <section className="recap-card" aria-label="复盘">
                     <div className="recap-card-head">
                       <h3>复盘</h3>
-                      <span className="muted">{room.recap ? "玩家手机上同步显示" : "提前结束，只有你能看到"}</span>
                     </div>
                     <RecapTimeline recap={(st.recapPreview ?? room.recap)!} room={room} send={send} editable />
                   </section>
@@ -472,12 +553,40 @@ export default function StorytellerApp({
           <PlayerEditor key={editing} room={room} seatId={editing} send={send} close={() => setEditing("")} />
         </div>
       )}
-      {drawer && (
-        <Drawer title={TITLES[drawer]} onClose={() => setDrawer("")}>
+      {drawer && (drawer !== "timer" || day) && (
+        <Drawer
+          title={TITLES[drawer]}
+          onClose={() => {
+            setDrawer("");
+            setLogPrefill(null);
+          }}
+        >
           <Suspense fallback={<p className="muted">加载中…</p>}>
-            {drawer === "table" && <StorytellerTable room={room} send={send} navigate={() => setDrawer("")} />}
-            {drawer === "log" && <PublicPanel room={room} send={send} />}
-            {drawer === "setup" && <SetupPanel room={room} send={send} showQr={onScan} />}
+            {drawer === "timer" && <DayTimer room={room} send={send} />}
+            {drawer === "table" && <StorytellerTable
+                room={room}
+                send={send}
+                navigate={() => setDrawer("")}
+                onSeat={(id) => {
+                  setDrawer("");
+                  setSeatId(id);
+                }}
+              />}
+            {drawer === "log" && (
+              <>
+                <PublicPanel
+                  room={room}
+                  send={send}
+                  prefill={logPrefill}
+                  onRecorded={() => {
+                    setDrawer("");
+                    setLogPrefill(null);
+                  }}
+                />
+                <RoundHistory room={room} session={session} />
+              </>
+            )}
+            {drawer === "setup" && <SetupPanel room={room} send={send} onSaved={() => setDrawer("")} />}
             {drawer === "plan" && <NightPanel room={room} send={send} />}
             {drawer === "more" && (
               <MoreDrawer

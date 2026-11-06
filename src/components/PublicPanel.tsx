@@ -1,8 +1,8 @@
 import PublicRoster from "./PublicRoster";
-import { RecapFacts, RecapTimeline, ResultBanner } from "./Recap";
-import { abstentionSummary } from "../../shared/vote-display";
+import Picker, { seatOptions } from "../ui/Picker";
+import { abstentionSummary, canRecordVote } from "../../shared/vote-display";
 import LiveVoting, { DeadVoteControls } from "./LiveVoting";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PublicRecord, RoomView } from "../../shared/types";
 import type { Send } from "../useRoom";
 function Timeline({
@@ -45,12 +45,20 @@ function Timeline({
 export default function PublicPanel({
   room,
   send,
+  prefill,
+  onRecorded,
 }: {
   room: RoomView;
   send: Send;
+  prefill?: { nominator: string; nominee: string } | null;
+  onRecorded?: () => void;
 }) {
-  const [nominator, setNominator] = useState("");
-  const [nominee, setNominee] = useState("");
+  const [nominator, setNominator] = useState(prefill?.nominator ?? "");
+  const [nominee, setNominee] = useState(prefill?.nominee ?? "");
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (prefill) formRef.current?.scrollIntoView({ block: "start" });
+  }, []);
   const [voters, setVoters] = useState<string[]>([]);
   const [editing, setEditing] = useState<PublicRecord>();
   const [reason, setReason] = useState("");
@@ -69,10 +77,10 @@ export default function PublicPanel({
       ? "提名者已死亡，请核对提名资格。"
       : "",
     today.some((r) => r.nominator === nominator)
-      ? "已有该玩家今天的提名记录，请核对。"
+      ? "他今天已经提名过。"
       : "",
     today.some((r) => r.nominee === nominee)
-      ? "已有该玩家今天被提名的记录，请核对。"
+      ? "他今天已经被提名过。"
       : "",
   ].filter(Boolean);
 
@@ -88,13 +96,11 @@ export default function PublicPanel({
       <div className="section-title">
         <div>
           <h2>公开记录</h2>
-          <p>记录投票和公开状态。玩家发言由自己记入私人笔记。</p>
         </div>
       </div>
       {room.phase === "DAY" && (
         <p className="notice">
-          常规计票参考：{living} 人存活，至少 {Math.ceil(living / 2)}{" "}
-          票；今天已记录最高 {highest} 票。处决仍由说书人裁定。
+          {living} 人存活，处决至少 {Math.ceil(living / 2)} 票；今天最高 {highest} 票。
         </p>
       )}
       <LiveVoting key={room.liveVote?.id} room={room} send={send} />
@@ -102,6 +108,7 @@ export default function PublicPanel({
       {room.storyteller &&
         !["OPEN", "COUNTING"].includes(room.liveVote?.status ?? "") && (
           <form
+            ref={formRef}
             className="panel vote-form"
             onSubmit={async (e) => {
               e.preventDefault();
@@ -116,42 +123,33 @@ export default function PublicPanel({
                   reason,
                 })
               ) {
+                const fromNomination = !!prefill && !editing;
                 reset();
                 setSaved(true);
+                if (fromNomination) onRecorded?.();
               }
               setBusy(false);
             }}
           >
             <h3>
-              {editing ? `更正第 ${editing.day} 天的投票` : "发起或登记投票"}
+              {editing ? `更正第 ${editing.day} 天的投票` : prefill ? "登记现场投票" : "发起或登记投票"}
             </h3>
-            <p className="muted">
-              可发起手机举手，也可登记现场投票。系统计数并记录，处决和特殊规则由说书人裁定。
-            </p>
             <div className="form-grid">
               {[
                 { label: "提名者", value: nominator, set: setNominator },
                 { label: "被提名者", value: nominee, set: setNominee },
               ].map((f) => (
-                <label key={f.label}>
-                  {f.label}
-                  <select
-                    aria-label={f.label}
-                    value={f.value}
-                    onChange={(e) => {
-                      f.set(e.target.value);
-                      setSaved(false);
-                    }}
-                    required
-                  >
-                    <option value="">选择玩家</option>
-                    {room.seats.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nickname}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <Picker
+                  key={f.label}
+                  label={f.label}
+                  value={f.value}
+                  options={seatOptions(room.seats)}
+                  onChange={(v) => {
+                    f.set(v);
+                    setSaved(false);
+                  }}
+                  placeholder="选择玩家"
+                />
               ))}
             </div>
             {!editing &&
@@ -160,7 +158,7 @@ export default function PublicPanel({
                   {w}
                 </p>
               ))}
-            {!editing && (
+            {!editing && !prefill && (
               <button
                 className="primary"
                 type="button"
@@ -176,29 +174,34 @@ export default function PublicPanel({
                 发起手机举手
               </button>
             )}
-            <details open={!!editing}>
+            <details open={!!editing || !!prefill}>
               <summary>{editing ? "修订票数" : "直接登记现场投票"}</summary>
-              <fieldset>
-                <legend>投票者 · {voters.length} 票</legend>
-                <div className="seat-checkboxes">
-                  {room.seats.map((s) => (
-                    <label key={s.id}>
-                      <input
-                        type="checkbox"
-                        checked={voters.includes(s.id)}
-                        onChange={(e) =>
-                          setVoters(
-                            e.target.checked
-                              ? [...voters, s.id]
-                              : voters.filter((id) => id !== s.id),
-                          )
-                        }
-                      />
-                      {s.nickname}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
+              <p className="muted">点举了手的人 · {voters.length} 票</p>
+              {editing && !editing.eligibleAtVote && (
+                <p className="muted">这条记录没有保存当时的投票资格，请核对后更正。</p>
+              )}
+              <div className="vote-grid editable" role="group" aria-label="投票者">
+                {[...room.seats]
+                  .sort((a, b) => a.number - b.number)
+                  .map((s) => {
+                    const on = voters.includes(s.id);
+                    const noVote = !canRecordVote(s, editing) && !on;
+                    const dead = editing?.deadAtVote ? editing.deadAtVote.includes(s.id) : !s.alive;
+                    return (
+                      <button
+                        type="button"
+                        key={s.id}
+                        className={`${on ? "on" : ""}${dead ? " dead" : ""}`}
+                        aria-pressed={on}
+                        disabled={noVote}
+                        onClick={() => setVoters(on ? voters.filter((id) => id !== s.id) : [...voters, s.id])}
+                      >
+                        {s.number}
+                        {noVote && <small>无票</small>}
+                      </button>
+                    );
+                  })}
+              </div>
               {editing && (
                 <label>
                   更正原因
@@ -222,7 +225,7 @@ export default function PublicPanel({
                     (!!editing && !reason.trim())
                   }
                 >
-                  {editing ? "保存更正" : "保存并公开"}
+                  {editing ? "保存更正" : `登记 ${voters.length} 票并公开`}
                 </button>
                 {editing && (
                   <button type="button" onClick={reset}>
@@ -252,23 +255,6 @@ export default function PublicPanel({
             : undefined
         }
       />
-      {room.storyteller &&
-        room.pastPublicRecords.map((a) => (
-          <details className="panel" key={a.gameNo}>
-            <summary>第 {a.gameNo} 局公开记录</summary>
-            <Timeline records={a.records} />
-          </details>
-        ))}
-      {[...(room.pastRecaps ?? [])]
-        .sort((a, b) => b.gameNo - a.gameNo)
-        .map((recap) => (
-          <details className="panel" key={`recap-${recap.gameNo}`}>
-            <summary>第 {recap.gameNo} 局复盘</summary>
-            <ResultBanner result={recap.result} />
-            <RecapFacts recap={recap} />
-            <RecapTimeline recap={recap} room={room} />
-          </details>
-        ))}
     </div>
   );
 }

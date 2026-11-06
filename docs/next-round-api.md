@@ -1,8 +1,6 @@
-# 总结下的“再来一局”：前端接入
+# 续局和换座接口
 
-后端已支持三种续局方式，前端按钮由你接入。本轮未修改前端文件。
-
-说书人页面在结束总结下显示“再来一局”，依据 `room.storyteller.canStartNextRound`（仅 `ENDED` 为 true）。
+说书人页面在 `ENDED` 阶段的结束总结下显示 `src/storyteller/NextRound.tsx` 提供的“再来一局”。接口字段 `room.storyteller.canStartNextRound` 也仅在该阶段为 true。
 点击只展开本地菜单，不立即发命令或清空总结：
 
 - **保持原号码** → `keep`。
@@ -16,7 +14,7 @@
 { type: "new_round", seatMode: "keep" } // 或 "host"、"rescan"
 ```
 
-仍使用原 `command` 信封，携带结束那一局的 `gameNo` 和本次唯一的 `commandId`。
+使用 `command` 信封，携带结束那一局的 `gameNo` 和本次唯一的 `commandId`。
 同一请求重试复用 `commandId`；重复包不会多开一局或重复归档。
 服务端将局号加一，返回 `SETUP`，保留当前配板作为下局起点，清空本局身份、聊天、行动、笔记及结果，归档上一局公开总结。
 所有模式都先关闭入场；说书人核对配板后，通过已有 `open_registration` 确认开始/开放登记。
@@ -54,10 +52,9 @@
 
 ## 玩家重新扫码
 
-二维码仍指向原房间，但应携带**新局号**，例如 `/join/ABCDEF?gameNo=2`。
-这是前端需要支持的参数；服务器不会自动修改现有二维码页面。
+二维码指向原房间，并携带**新局号**，例如 `/join/ABCDEF?g=2`。`src/components/Invitation.tsx` 根据当前 `room.gameNo` 生成地址，扫码页读取 `g` 参数。
 
-`GET /api/rooms/:code` 现在返回公开的 `gameNo`。扫码页核对二维码局号与当前局号一致后，提交：
+`GET /api/rooms/:code` 返回公开的 `gameNo`。扫码页核对二维码局号与当前局号一致后，提交：
 
 ```ts
 // POST /api/rooms/ABCDEF/join
@@ -73,6 +70,6 @@
 
 ## 总结的保留
 
-正常结束的本局总结仍读取 `room.recap`。进入下一局后，说书人通过 `pastRecaps` 继续查看固定的上一局总结；其中的旧号码、身份和时间线不随新座位变化。
+正常结束的本局总结仍读取 `room.recap`。进入下一局后，说书人通过 `storyteller.archiveGames` 选择局数，再请求 `GET /api/rooms/:code/history/:gameNo` 继续查看固定的上一局总结；其中的旧号码、身份和时间线不随新座位变化。
 玩家只显示当前局信息；等待入座和新一局开局后均不返回旧笔记、旧公开记录或旧总结。上一局总结由说书人查看归档。
 提前结束仍不自动公开身份复盘，沿用 [结束与复盘接口](endgame-api.md) 的规则。

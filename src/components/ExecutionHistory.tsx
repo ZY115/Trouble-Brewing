@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Picker from "../ui/Picker";
 import type { ExecutionRecord, RoomView } from "../../shared/types";
 import type { Send } from "../useRoom";
 import { roleName } from "../../shared/roles";
@@ -30,7 +31,7 @@ function Editor({
     <details>
       <summary>更正 / 撤销这次处决</summary>
       <p className="muted">
-        修改当时的处决结果及当前生死，保留原记录。下一次送葬者参考使用最新有效版本；已发反馈需另行更正。
+        原记录会保留。已经告诉送葬者的信息需要另外更正。
       </p>
       {draft.version !== version && (
         <p className="notice">
@@ -40,35 +41,27 @@ function Editor({
           </button>
         </p>
       )}
-      <label className="field">
-        处决结果
-        <select
-          aria-label="处决更正结果"
-          value={draft.voided ? "void" : draft.died ? "died" : "survived"}
-          onChange={(e) =>
-            set({
-              ...draft,
-              voided: e.target.value === "void",
-              died: e.target.value === "died",
-            })
-          }
-        >
-          <option value="died">因处决死亡（含补录）</option>
-          <option value="survived">处决未导致死亡</option>
-          <option value="void">撤销这次处决</option>
-        </select>
-      </label>
-      <label className="field">
-        当前生死
-        <select
-          aria-label="处决更正后的生死"
-          value={String(draft.alive)}
-          onChange={(e) => set({ ...draft, alive: e.target.value === "true" })}
-        >
-          <option value="true">存活</option>
-          <option value="false">死亡</option>
-        </select>
-      </label>
+      <Picker
+        label="处决结果"
+        value={draft.voided ? "void" : draft.died ? "died" : "survived"}
+        options={[
+          { value: "died", label: "因处决死亡" },
+          { value: "survived", label: "处决未导致死亡" },
+          { value: "void", label: "撤销这次处决" },
+        ]}
+        onChange={(v) => set({ ...draft, voided: v === "void", died: v === "died" })}
+        clearable={false}
+      />
+      <Picker
+        label="当前生死"
+        value={String(draft.alive)}
+        options={[
+          { value: "true", label: "存活" },
+          { value: "false", label: "死亡" },
+        ]}
+        onChange={(v) => set({ ...draft, alive: v === "true" })}
+        clearable={false}
+      />
       <label className="field">
         公开更正原因
         <input
@@ -140,7 +133,7 @@ export default function ExecutionHistory({
               {old ? "（旧版）" : ""}
             </strong>
             <p className="muted">
-              当时真实身份：{roleName(e.actualRoleId)}（仅说书人可见）
+              当时真实身份：{roleName(e.actualRoleId)}
             </p>
             {!old && <Editor room={room} entry={e} send={send} />}
           </article>

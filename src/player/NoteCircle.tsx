@@ -8,26 +8,23 @@ import {
   type Verdict,
 } from "./notes";
 
-/**
- * The table is the notebook: each seat shows the role I wrote down for it and
- * my good/evil read. At night the same circle picks targets.
- */
 export function NoteCircle({
   room,
   verdicts,
   picked,
   picking,
+  noSelf = false,
   onSeat,
 }: {
   room: RoomView;
   verdicts: Record<string, Verdict>;
   picked: string[];
   picking: boolean;
+  noSelf?: boolean;
   onSeat: (seatId: string) => void;
 }) {
   const me = room.viewer.seatId;
   const notes = seatNotes(room);
-  // A live nomination is public, so every phone draws it the same way.
   const vote =
     room.liveVote && ["OPEN", "COUNTING"].includes(room.liveVote.status)
       ? room.liveVote
@@ -48,6 +45,7 @@ export function NoteCircle({
       tone: v === "good" ? "town" : v === "evil" ? "demon" : "neutral",
       dead: !s.alive,
       selected: picking && picked.includes(s.id),
+      disabled: picking && noSelf && s.id === me,
       rings: [
         ...(s.id === me ? (["self"] as const) : []),
         ...(vote?.nominee === s.id ? (["target"] as const) : []),
@@ -95,7 +93,7 @@ export function NoteCircle({
           <>
             <span className="pl-count">{living}</span>
             <span className="pl-small">
-              人存活 · 过半 {Math.ceil(living / 2)} 票
+              人存活 · 处决至少 {Math.ceil(living / 2)} 票
             </span>
           </>
         }
@@ -161,7 +159,6 @@ function Rows({
   );
 }
 
-/** The paper table, rebuilt from the same notes: one row per seat. */
 export function NotesTable({
   room,
   verdicts,
@@ -175,7 +172,7 @@ export function NotesTable({
     <>
       <section className="pl-card">
         <span className="pl-small">
-          点一行即可修改；在圆桌上点座位也是同一份笔记。
+          点一行修改。
         </span>
         <Rows
           seats={room.seats}

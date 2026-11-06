@@ -3,24 +3,21 @@ import type { NightAction, RoomView } from "../../shared/types";
 import { completedAction } from "../../shared/assistance";
 import type { Send } from "../useRoom";
 import { nightMessages } from "./visibility";
+import BluffBoard from "./BluffBoard";
 
 export function tonightActions(room: RoomView) {
   const tonight = room.actions.filter((a) => a.night === room.day);
   return {
-    /** An ability whose targets the player can still choose or change. */
     open: tonight.find((a) => !completedAction(a) && a.targetCount > 0 && a.canChangeTargets),
     pending: tonight.find((a) => !completedAction(a)),
     delivered: tonight.filter((a) => a.status === "DELIVERED").at(-1),
+    closed: tonight.find((a) => completedAction(a) && a.status !== "DELIVERED"),
   };
 }
 
 const numbers = (room: RoomView, ids: string[]) =>
   ids.map((id) => room.seats.find((s) => s.id === id)?.number).join(" · ");
 
-/**
- * The night card sits under the circle. Choosing targets happens on the circle
- * itself; the storyteller's answer appears here the moment it is sent.
- */
 export default function NightCard({
   room,
   send,
@@ -37,7 +34,7 @@ export default function NightCard({
   onSubmitted: () => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const { open, pending, delivered } = tonightActions(room);
+  const { open, pending, delivered, closed } = tonightActions(room);
   const messages = nightMessages(room).filter((m) => m.atNight && m.night === room.day);
   const action: NightAction | undefined = open ?? pending ?? delivered;
 
@@ -94,9 +91,22 @@ export default function NightCard({
           说书人回复{delivered.targets.length ? ` · 你选择了 ${numbers(room, delivered.targets)}` : ""}
         </span>
         <span className="night-result">{delivered.response}</span>
+        {(delivered.responseVersion ?? 1) > 1 && (
+          <span className="pl-small">
+            说书人更正了这条信息{delivered.responseHistory?.at(-1)?.reason ? `：${delivered.responseHistory.at(-1)!.reason}` : ""}
+          </span>
+        )}
       </>
     );
-  } else
+  } else if (closed)
+    body = (
+      <>
+        <span className="pl-small">今晚的行动已结束</span>
+        <span className="pl-picked">—</span>
+        <span className="pl-small">可以点圆桌上的座位整理笔记</span>
+      </>
+    );
+  else
     body = (
       <>
         <span className="pl-small">今晚没有需要你提交的行动</span>
@@ -119,6 +129,7 @@ export default function NightCard({
           <span>{m.text}</span>
         </div>
       ))}
+      {room.phase === "FIRST_NIGHT" && <BluffBoard room={room} send={send} />}
     </section>
   );
 }

@@ -7,7 +7,6 @@ export interface DeliveredResult {
   targets: string[];
   response: string;
   version: number;
-  /** Missing only for legacy results that predate delivery timestamps. */
   sentAt?: string;
   history: NonNullable<NightAction["responseHistory"]>;
 }
@@ -18,14 +17,12 @@ export interface NoteSummary {
   latest: NoteRevision;
 }
 export interface PlayerWorkspace {
-  /** Delivered immediately, including the current night; never draft rulings. */
   results: DeliveredResult[];
   notebook: {
     defaultDate: { day: number; period: "DAY" | "NIGHT" };
     seats: {
       seat: PublicSeat;
       notes: NoteSummary[];
-      /** Separate what they claimed from what I suspect. Never real assignments. */
       claimed?: NoteSummary;
       suspected?: NoteSummary;
     }[];
@@ -47,11 +44,9 @@ export interface NightWorkItem {
   status: WorkStatus;
 }
 export interface StorytellerWorkbench {
-  /** Current night only, in the actual editable plan order, then custom actions. */
   nightQueue: NightWorkItem[];
   counts: Record<WorkStatus, number>;
   nextRulingActionId?: string;
-  /** Same player card for structured actions and direct chat; sorted by number. */
   seats: {
     seatId: string;
     number: number;

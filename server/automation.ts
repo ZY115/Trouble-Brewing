@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { randomUUID } from "node:crypto";
 import type { Room } from "./game";
 import type { Command } from "../shared/commands";
@@ -21,6 +22,7 @@ export function privateMessage(r: Room, to: string, content: string) {
     sequence: ++r.messageSequence,
   });
 }
+const tag = (...parts: string[]) => createHash("sha256").update(parts.join("|")).digest("base64url").slice(0, 16);
 export function ruleNotices(r: Room): RuleNotice[] {
   if (!["FIRST_NIGHT", "OTHER_NIGHT", "DAY"].includes(r.phase)) return [];
   const alive = r.seats.filter((s) => s.alive),
@@ -46,14 +48,14 @@ export function ruleNotices(r: Room): RuleNotice[] {
         deathId: d.id,
         canConfirmSelfKill: d.phase !== "DAY" && !d.selfKill,
         candidates,
-        text: `${r.seats.find((s) => s.id === d.seatId)?.number}号恶魔死亡；死亡前${d.aliveBefore}人存活。${d.scarletEligible ? "当时有健康清醒的猩红女郎，应核对继任。" : d.selfKill && !d.impaired ? "小恶魔以自身能力自杀，核对存活爪牙传位。" : "没有已确认的继任条件；核对善良胜利。若是未记录的自杀或特殊情况，请先在总体表裁定。"} ${candidates.length ? "确认继任后会更新身份和本夜清单。" : "当前无存活继任候选。"}`,
+        text: `${r.seats.find((s) => s.id === d.seatId)?.number} 号恶魔死亡，死前 ${d.aliveBefore} 人存活。${d.scarletEligible ? "猩红女郎健康，应由她继任。" : d.selfKill && !d.impaired ? "小恶魔自杀，由一名爪牙继任。" : "没有人继任，善良获胜。如果其实是自杀传位，请先在总表处理。"}${candidates.length ? "" : "没有可以继任的爪牙。"}`,
       });
     } else
       notices.push({
-        id: `no-demon:${r.seats.map((s) => `${s.id}:${s.alive}:${r.assignments[s.id]?.actualRoleId}`).join(",")}`,
+        id: `no-demon:${tag(...r.seats.map((s) => `${s.id}:${s.alive}:${r.assignments[s.id]?.actualRoleId}`))}`,
         kind: "victory",
         candidates: [],
-        text: "当前没有存活恶魔。旧档案可能缺少死亡快照，请核对猩红女郎/自杀传位；无继任时善良获胜。",
+        text: "场上没有存活的恶魔。没有人继任时善良获胜。",
       });
   }
   for (const e of effectiveExecutions(r).filter(
@@ -63,17 +65,40 @@ export function ruleNotices(r: Room): RuleNotice[] {
       id: `saint:${e.id}`,
       kind: "saint",
       candidates: [],
-      text: `第${e.day}天${r.seats.find((s) => s.id === e.seatId)?.number}号圣徒因处决死亡：${e.impaired ? "当时有中毒/醉酒标记，能力可能不生效，需核对。" : e.impaired === undefined ? "旧记录未保存当时醉酒/中毒，请核对；健康清醒时邪恶获胜。" : "当时未标记中毒/醉酒，按通常规则邪恶获胜，请确认是否结束。"}`,
+      text: `第 ${e.day} 天 ${r.seats.find((s) => s.id === e.seatId)?.number} 号圣徒被处决。${e.impaired ? "他当时中毒或醉酒，能力可能不生效。" : e.impaired === undefined ? "记录里没有当时是否中毒，健康时邪恶获胜。" : "他当时健康，邪恶获胜。"}`,
+    });
+  const SOURCE = { poisoned: "poisoner", protected: "monk" } as const;
+  const ended = alive.flatMap((s) =>
+    (["poisoned", "protected"] as const).flatMap((condition) => {
+      if (!r.conditions[s.id]?.[condition]) return [];
+      const sourceId = r.effectSources?.[`${s.id}:${condition}`];
+      const source = r.seats.find((x) => x.id === sourceId);
+      const role = SOURCE[condition];
+      const name = roleName(role);
+      const effect = condition === "poisoned" ? "中毒" : "保护";
+      if (!source) return [];
+      const lost = !source.alive
+        ? `${source.number} 号${name}已死亡`
+        : r.assignments[source.id]?.actualRoleId !== role
+          ? `${source.number} 号已不是${name}`
+          : "";
+      return lost ? [{ seatId: s.id, condition, text: `${lost}，${s.number} 号的${effect}应立刻结束。` }] : [];
+    }),
+  );
+  if (ended.length)
+    notices.push({
+      id: `effect:${tag(...ended.map((e) => `${e.seatId}:${e.condition}:${e.text}`), String(r.deathEvents.length))}`,
+      kind: "effect",
+      candidates: ended.map((e) => e.seatId),
+      effects: ended.map(({ seatId, condition }) => ({ seatId, condition })),
+      text: ended.map((e) => e.text).join(""),
     });
   if (alive.length <= 2)
     notices.push({
-      id: `two:${alive
-        .map((s) => s.id)
-        .sort()
-        .join(",")}:${demons.length}`,
+      id: `two:${tag(...alive.map((s) => s.id).sort(), String(demons.length))}`,
       kind: "victory",
       candidates: [],
-      text: `仅剩${alive.length}人存活。${demons.length ? "仍有存活恶魔，通常邪恶获胜。" : "无存活恶魔，先处理恶魔死亡及继任；不要仅凭人数宣布邪恶胜利。"}`,
+      text: `只剩 ${alive.length} 人存活。${demons.length ? "恶魔还活着，邪恶获胜。" : "恶魔已死，先处理继任。"}`,
     });
   if (
     r.phase === "DAY" &&
@@ -82,13 +107,10 @@ export function ruleNotices(r: Room): RuleNotice[] {
     !effectiveExecutions(r).some((e) => e.day === r.day && !e.voided)
   )
     notices.push({
-      id: `mayor:${r.day}:${alive
-        .map((s) => s.id)
-        .sort()
-        .join(",")}`,
+      id: `mayor:${r.day}:${tag(...alive.map((s) => s.id).sort())}`,
       kind: "mayor",
       candidates: [],
-      text: "三人存活且有镇长，今天尚无有效处决。若今天不处决并结束白天，请核对镇长是否健康清醒；能力生效时善良获胜。",
+      text: "只剩三人且镇长在场。今天不处决就结束白天的话，镇长健康时善良获胜。",
     });
   return notices.filter((n) => !r.dismissedNotices.includes(n.id));
 }
@@ -126,6 +148,7 @@ export function automationCommand(
       "玩家不存在",
     );
     (r.conditions[c.seatId] ??= emptyConditions())[c.condition] = c.value;
+    delete (r.effectSources ??= {})[`${c.seatId}:${c.condition}`];
     r.staleConditions = r.staleConditions.filter(
       (x) => x.seatId !== c.seatId || x.condition !== c.condition,
     );
@@ -134,8 +157,10 @@ export function automationCommand(
     c.type === "keep_expired_conditions"
   ) {
     if (c.type === "clear_expired_conditions")
-      for (const x of r.staleConditions)
+      for (const x of r.staleConditions) {
         (r.conditions[x.seatId] ??= emptyConditions())[x.condition] = false;
+        delete (r.effectSources ??= {})[`${x.seatId}:${x.condition}`];
+      }
     r.staleConditions = [];
   } else if (c.type === "resolve_notice") {
     check(
@@ -156,18 +181,20 @@ export function automationCommand(
     );
     const numbers = (ids: typeof minions) =>
       ids.map((s) => `${s.number}号`).join("、") || "无";
-    for (const s of minions)
-      privateMessage(
-        r,
-        s.id,
-        `首夜信息：恶魔是${numbers(demons)}；其他爪牙是${numbers(minions.filter((x) => x.id !== s.id))}。`,
-      );
-    for (const s of demons)
-      privateMessage(
-        r,
-        s.id,
-        `首夜信息：爪牙是${numbers(minions)}；不在场的善良假身份：${r.setup.bluffs.map(roleName).join("、")}。`,
-      );
+    if (!c.offline) {
+      for (const s of minions)
+        privateMessage(
+          r,
+          s.id,
+          `首夜信息：恶魔是${numbers(demons)}；其他爪牙是${numbers(minions.filter((x) => x.id !== s.id))}。`,
+        );
+      for (const s of demons)
+        privateMessage(
+          r,
+          s.id,
+          `首夜信息：爪牙是${numbers(minions)}；不在场的善良假身份：${r.setup.bluffs.map(roleName).join("、")}。`,
+        );
+    }
     r.evilInfoSent = true;
     r.evilReleased = true;
   } else if (c.type === "confirm_self_kill") {
@@ -216,10 +243,9 @@ export function automationCommand(
       r,
       c.seatId,
       passedThisNight
-        ? "说书人确认：你现在是小恶魔。本夜因自杀传位，不再行动；下个夜晚开始击杀。"
-        : "说书人确认：你现在是小恶魔。请按本夜待办行动。",
+        ? "你现在是小恶魔。今晚不再行动，从下一个夜晚开始击杀。"
+        : "你现在是小恶魔。",
     );
-    // Preserve completed history; obsolete entries cannot be restored or started.
     for (const i of r.nightPlan.filter(
       (i) => i.night === r.day && i.seatId === c.seatId && i.roleId !== "imp",
     )) {
@@ -231,7 +257,6 @@ export function automationCommand(
         i.status = "skipped";
       i.retiredReason = "已继任小恶魔，原身份清单仅保留历史，不再发起";
     }
-    // Existing pending requests for the old character cannot survive the change.
     for (const a of r.actions.filter(
       (a) => a.seatId === c.seatId && a.night === r.day && !completedAction(a),
     )) {
@@ -317,10 +342,10 @@ export function automationCommand(
         (c.effect === "kill" &&
           (r.day === 1 ||
             r.conditions[target.id]?.protected ||
-            (["soldier", "mayor"].includes(targetRole) && targetHealthy)));
+            (targetRole === "soldier" && targetHealthy)));
       check(
         !unusual || c.force,
-        "存在中毒、醉酒、保护或特殊角色条件，请核对后明确覆盖，或仅确认收到",
+        "按规则这次不会生效，请核对后明确选择仍然生效",
       );
       if (c.effect === "kill")
         setLife(
@@ -333,6 +358,7 @@ export function automationCommand(
       else {
         const condition = c.effect === "poison" ? "poisoned" : "protected";
         (r.conditions[target.id] ??= emptyConditions())[condition] = true;
+        (r.effectSources ??= {})[`${target.id}:${condition}`] = a!.seatId;
         r.staleConditions = r.staleConditions.filter(
           (x) => x.seatId !== target.id || x.condition !== condition,
         );
@@ -350,7 +376,9 @@ export function automationCommand(
   return c.type === "apply_action"
     ? "确认行动并记录说书人裁定效果"
     : c.type === "send_evil_info"
-      ? "已私密发放首夜邪恶信息与假身份"
+      ? c.offline
+        ? "首夜邪恶信息已线下告知"
+        : "已私密发放首夜邪恶信息与假身份"
       : c.type === "promote_imp"
         ? "说书人确认恶魔继任"
         : c.type === "clear_expired_conditions"

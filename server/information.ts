@@ -97,12 +97,15 @@ export function informationReference(
       const demons = targets.filter(
         (id) => roleById(role(id))?.team === "demon",
       );
+      const herringHit = !!r.redHerring && targets.includes(r.redHerring);
       ref.actual = demons.length
         ? `选中真实恶魔：${demons.map(description).join("、")}`
-        : "两个目标中没有真实恶魔。";
+        : herringHit
+          ? `${r.seats.find((s) => s.id === r.redHerring)?.number} 号是误判目标，会被查成恶魔`
+          : "两个目标中没有真实恶魔。";
       ref.evidence = targets.map(description);
       if (r.redHerring) {
-        const hit = targets.includes(r.redHerring);
+        const hit = herringHit;
         ref.evidence.push(
           `占卜误判目标：${r.seats.find((s) => s.id === r.redHerring)?.number} 号${hit ? "（本次命中）" : "（本次未命中）"}`,
         );
@@ -174,6 +177,7 @@ export function informationReference(
       break;
     }
   }
+  if (ref.suggestedResponse) ref.truth = ref.suggestedResponse;
   if (impaired || (!actor?.alive && roleId !== "ravenkeeper"))
     delete ref.suggestedResponse;
   return ref;

@@ -28,7 +28,6 @@ const sourceCheckout = existsSync("src/App.tsx");
 function run(args) {
   const result = spawnSync(
     process.platform === "win32" ? (process.env.ComSpec || "cmd.exe") : "npm",
-    // Only fixed internal npm arguments are accepted here.
     process.platform === "win32" ? ["/d", "/s", "/c", `npm.cmd ${args.join(" ")}`] : args,
     { stdio: "inherit" },
   );

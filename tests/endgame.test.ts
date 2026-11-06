@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { GameService } from "../server/game";
 import { Store } from "../server/store";
 import { commandWithContext } from "../shared/command-context";
+import { phaseReview } from "../shared/phase-review";
 import type { Command } from "../shared/commands";
 import type { Session } from "../shared/types";
 
@@ -233,7 +234,6 @@ describe("advisory ending, with storyteller authority", () => {
       expectedContextVersion: f.st().contextVersion,
     });
     expect(f.review().suggestions[0].id).toBe("succession");
-    // A dismissed actionable notice must be restored before the existing promotion command.
     const room = f.store.get(f.host.code)!;
     room.dismissedNotices = [];
     f.store.save(room);
@@ -272,7 +272,7 @@ describe("advisory ending, with storyteller authority", () => {
     });
     expect(f.review().suggestions).toEqual([]);
     expect(f.preview().entries.find((e) => e.kind === "role")!.text).toContain(
-      "从 投毒者 变为 小恶魔",
+      "2 号投毒者继任成为小恶魔",
     );
   });
 
@@ -435,17 +435,16 @@ describe("concise factual recap", () => {
     const recap = f.view(f.players[0]).recap!;
     const firstPoison = recap.entries.find((e) => e.id === `action:${poison}`)!;
     expect(firstPoison).toMatchObject({ day: 1, period: "NIGHT" });
-    expect(firstPoison.text).toContain("2 号（投毒者）选择下毒 4 号");
-    expect(firstPoison.text).toContain("已为 4 号标记中毒");
+    expect(firstPoison.text).toBe("2 号投毒者毒了 4 号。");
     expect(
       recap.entries.find((e) => e.id === `action:${acknowledge}`)!.text,
-    ).toContain("未在行动上登记实际效果");
+    ).toBe("2 号投毒者想毒 9 号，没有生效。");
     const info = recap.entries.find((e) => e.id === `action:${inspect}`)!.text;
-    expect(info).toContain("中毒或醉酒");
-    expect(info).toContain("当时实际参考");
-    expect(info).toContain("最终告知玩家：是（已更正）");
+    expect(info).toContain("4 号占卜师（中毒）查验 1 号、3 号，");
+    expect(info).toContain("得知「是」（已更正）");
+    expect(JSON.stringify(recap)).not.toContain("当时实际参考");
     expect(
-      recap.entries.some((e) => e.day === 2 && e.text.includes("标记保护")),
+      recap.entries.some((e) => e.day === 2 && e.text.includes("保护了 9 号")),
     ).toBe(true);
     expect(recap.seats[0].initial!.actualRoleId).toBe("imp");
     expect(JSON.stringify(recap)).not.toContain("私聊不公开");
@@ -454,6 +453,66 @@ describe("concise factual recap", () => {
     expect(recap.entries.map((e) => e.day)).toEqual(
       [...recap.entries.map((e) => e.day)].sort(),
     );
+  });
+
+  it("tells a registered death with its stated reason, such as a Slayer hit", () => {
+    const f = fixture();
+    f.phase("DAY");
+    f.send({ type: "set_alive", seatId: f.ids[3], alive: false, reason: "10 号猎手开枪命中" });
+    f.send(f.finish({ reason: "线下确认游戏结果" }));
+    expect(f.view().recap!.entries.map((e) => e.text)).toContain("4 号死亡（10 号猎手开枪命中）。");
+  });
+
+  it("lets the storyteller dismiss every rule reminder, however many seats it names", () => {
+    const f = fixture();
+    [1, 2, 3, 4, 5, 7, 8].forEach((i) => f.life(i));
+    f.phase("DAY");
+    const notices = f.st().notices;
+    expect(notices.some((n) => n.kind === "mayor")).toBe(true);
+    expect(phaseReview(f.view(), true).lines).toContain("三人存活、镇长健康且今天无人被处决：结束白天后善良获胜。");
+    for (const n of notices) {
+      expect(n.id.length).toBeLessThanOrEqual(100);
+      f.send({ type: "resolve_notice", noticeId: n.id, expectedContextVersion: f.st().contextVersion });
+    }
+    expect(f.st().notices).toEqual([]);
+  });
+
+  it("records a Virgin execution as a nomination, not as a reason to search for", () => {
+    const f = fixture();
+    const room = f.store.get(f.host.code)!;
+    room.assignments[f.ids[4]] = { actualRoleId: "virgin", perceivedRoleId: "virgin" };
+    f.store.save(room);
+    f.phase("DAY");
+    f.send({ type: "execute_player", seatId: f.ids[7], nominee: f.ids[4], reason: "提名贞洁者", confirmed: true, expectedContextVersion: f.st().contextVersion });
+    const record = f.view(f.players[0]).publicRecords.find((r) => r.type === "execution")!;
+    expect(record).toMatchObject({ nominator: f.ids[7], nominee: f.ids[4], text: "8 号提名 5 号后立即被处决。" });
+    expect(f.st().executions.at(-1)!.nominee).toBe(f.ids[4]);
+    expect(f.preview().entries.map((e) => e.text)).toContain("8 号洗衣妇提名 5 号贞洁者后立即被处决。");
+  });
+
+  it("publishes a Slayer shot and tells it in the recap, hit or miss", () => {
+    const f = fixture();
+    const room = f.store.get(f.host.code)!;
+    room.assignments[f.ids[7]] = { actualRoleId: "slayer", perceivedRoleId: "slayer" };
+    room.assignments[f.ids[8]] = { actualRoleId: "drunk", perceivedRoleId: "slayer" };
+    f.store.save(room);
+    f.phase("DAY");
+    expect(() => f.send({ type: "slayer_shot", shooter: f.ids[2], target: f.ids[0], kill: true })).toThrow("不会致死");
+    expect(() => f.send({ type: "slayer_shot", shooter: f.ids[8], target: f.ids[0], kill: true })).toThrow("不会致死");
+    expect(() => f.send({ type: "slayer_shot", shooter: f.ids[7], target: f.ids[2], kill: true })).toThrow("不会致死");
+    f.send({ type: "slayer_shot", shooter: f.ids[8], target: f.ids[0], kill: false });
+    const miss = f.view(f.players[0]).publicRecords.at(-1)!;
+    expect(miss.text).toBe("9 号向 1 号开枪，没有发生任何事。");
+    expect(miss.shooter).toBe(f.ids[8]);
+    expect(() => f.send({ type: "slayer_shot", shooter: f.ids[7], target: f.ids[0], kill: false }, f.players[7])).toThrow("说书人");
+    f.send({ type: "slayer_shot", shooter: f.ids[7], target: f.ids[0], kill: true });
+    expect(f.view().seats[0].alive).toBe(false);
+    expect(() => f.send({ type: "slayer_shot", shooter: f.ids[0], target: f.ids[1], kill: false })).toThrow("死亡");
+    expect(() => f.send({ type: "slayer_shot", shooter: f.ids[7], target: f.ids[9], kill: true })).toThrow("不会致死");
+    const texts = f.preview().entries.map((e) => e.text);
+    expect(texts).toContain("9 号酒鬼（以为自己是猎手）向 1 号小恶魔开枪，没有发生任何事。");
+    expect(texts).toContain("8 号猎手向 1 号小恶魔开枪，1 号死亡。");
+    expect(texts.some((t) => t.startsWith("1 号死亡"))).toBe(false);
   });
 
   it("cancels unfinished actions/votes on finish without reporting draft responses as delivered", () => {
@@ -472,7 +531,7 @@ describe("concise factual recap", () => {
     expect(day.view().liveVote!.status).toBe("CANCELLED");
   });
 
-  it("supports private draft edits, hidden items and public post-game corrections with optimistic versions", () => {
+  it("supports private draft edits and public post-game corrections with optimistic versions", () => {
     const f = fixture();
     f.life(8);
     const original = f.preview().entries[0];
@@ -482,8 +541,7 @@ describe("concise factual recap", () => {
       expectedVersion: f.preview().version,
       day: 1,
       period: "NIGHT",
-      text: "这是误记，复盘暂不展示",
-      hidden: true,
+      text: "9 号本夜死亡（说书人登记）",
     };
     expect(() => f.send(edit, f.players[0])).toThrow("仅限说书人");
     f.send(edit);
@@ -494,20 +552,18 @@ describe("concise factual recap", () => {
       day: 1,
       period: "NIGHT",
       text: "镇长转移了本夜击杀目标（线下裁定）",
-      hidden: false,
     });
     expect(f.view(f.players[0]).recap).toBeUndefined();
     f.send(f.finish({ reason: "人工裁定" }));
     const recap = f.view(f.players[0]).recap!;
-    expect(recap.entries).toHaveLength(1);
-    expect(recap.entries[0].text).toContain("线下裁定");
+    expect(recap.entries).toHaveLength(2);
+    expect(recap.entries.map((e) => e.text)).toContain("镇长转移了本夜击杀目标（线下裁定）");
     f.send({
       ...edit,
       expectedVersion: f.preview().version,
-      hidden: false,
       text: "9 号本夜死亡，已由说书人核实",
     });
-    expect(f.view(f.players[0]).recap!.entries).toHaveLength(2);
+    expect(f.view(f.players[0]).recap!.entries.map((e) => e.text)).toContain("9 号本夜死亡，已由说书人核实");
     expect(f.view().result!.winner).toBe("good");
   });
 
@@ -545,7 +601,7 @@ describe("concise factual recap", () => {
       note: "不推断是谁下的毒",
     };
     f.store.save(room);
-    expect(f.preview().limitations.join("")).toContain("缺少开局身份快照");
+    expect(f.preview().limitations.join("")).toContain("缺少开局身份记录");
     expect(f.preview().entries).toEqual([]);
     expect(f.preview().seats[0].initial).toBeUndefined();
     f.send(f.finish({ reason: "旧存档人工裁定" }));

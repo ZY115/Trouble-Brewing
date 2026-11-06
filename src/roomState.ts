@@ -1,6 +1,5 @@
 import type { RoomView } from "../shared/types";
 
-/** Refuse delayed packets from a previous round or older revision. */
 export function acceptRoomState(
   previous: RoomView | null,
   next: RoomView,
@@ -14,7 +13,6 @@ export function acceptRoomState(
   );
 }
 
-/** Also protects updated clients while an older server is still running. */
 export function currentPlayerState(room: RoomView): RoomView {
   if (room.viewer.kind !== "player") return room;
   const current = {

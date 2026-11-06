@@ -1,4 +1,16 @@
-import type { LiveVote, PublicRecord } from "./types";
+import type { LiveVote, PublicRecord, PublicSeat } from "./types";
+
+export function canRecordVote(
+  seat: Pick<PublicSeat, "id" | "alive" | "deadVoteAvailable">,
+  record?: PublicRecord,
+) {
+  if (!record) return seat.alive || seat.deadVoteAvailable;
+  return (
+    !record.eligibleAtVote ||
+    record.eligibleAtVote.includes(seat.id) ||
+    !!record.voters?.includes(seat.id)
+  );
+}
 
 export function currentVoteRecord(vote: LiveVote, records: PublicRecord[]) {
   let record = records.find((r) => r.id === vote.recordId);
@@ -12,7 +24,6 @@ export function currentVoteRecord(vote: LiveVote, records: PublicRecord[]) {
   return record;
 }
 
-/** Sort by original ballot position, not the time a historical correction was appended. */
 export function latestVoteRecord(records: PublicRecord[]) {
   let latest: PublicRecord | undefined,
     latestIndex = -1;
@@ -51,12 +62,11 @@ export function ballotStatus(
   }
   if (!vote) return "—";
   if (vote.status === "CANCELLED") return "本次已取消";
-  if (vote.counted[seatId]) return "已计 1 票";
   if (vote.eligibleAtVote && !vote.eligibleAtVote.includes(seatId))
     return "无可用死者票";
-  if (seatId in vote.counted)
-    return vote.counted[seatId] ? "已计 1 票" : "未投 / 弃票";
-  return vote.hands[seatId] ? "已举手 · 待计票" : "未举手 · 待计票";
+  if (vote.status === "COUNTING")
+    return vote.counted[seatId] ? "已举手 · 已锁定" : "未举手 · 已锁定";
+  return vote.hands[seatId] ? "已举手" : "未举手";
 }
 
 export function abstentionSummary(record: PublicRecord): string {

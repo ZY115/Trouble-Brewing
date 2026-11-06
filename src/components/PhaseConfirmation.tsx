@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { phaseReview } from "../../shared/phase-review";
 import type { RoomView } from "../../shared/types";
 import type { Send } from "../useRoom";
+import { markAdvance } from "../storyteller/phaseIntent";
 
 export default function PhaseConfirmation({
   room,
@@ -53,12 +54,12 @@ export default function PhaseConfirmation({
         ))}
       </ul>
       {stale ? (
-        <p role="alert">状态已变化，请重新核对后再确认。</p>
+        <p role="alert">情况有变化，请重新核对。</p>
       ) : (
         reviewed.phase !== "DAY" &&
         !reviewed.review.blocked && (
           <p className="muted">
-            未开始的清单和未发送的邪恶信息只作提醒；确认后仍可继续推进。
+            以上只是提醒，确认后照常推进。
           </p>
         )
       )}
@@ -78,12 +79,15 @@ export default function PhaseConfirmation({
               setBusy(true);
               try {
                 if (
-                  await send({
-                    type: "next_phase",
-                    expectedPhaseVersion: reviewed.version,
-                    expectedReviewKey: reviewed.review.key,
-                    publishLifeOnDawn,
-                  })
+                  await markAdvance(
+                    reviewed.version,
+                    send({
+                      type: "next_phase",
+                      expectedPhaseVersion: reviewed.version,
+                      expectedReviewKey: reviewed.review.key,
+                      publishLifeOnDawn,
+                    }),
+                  )
                 )
                   onClose();
               } finally {

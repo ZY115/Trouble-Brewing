@@ -62,7 +62,6 @@ it("never returns previous-game private or public information after rematch, rec
     day: 1,
     period: "NIGHT",
     text: "OLD_RECAP_SECRET",
-    hidden: false,
   });
   const h = client(app.url, host),
     a = client(app.url, player);
@@ -208,7 +207,6 @@ it("publishes a normal ending and concise recap only after host confirmation, in
     day: 1,
     period: "NIGHT",
     text: "线下确认：2号向8号下毒",
-    hidden: false,
   });
   const h = client(app.url, host),
     a = client(app.url, players[0]),
@@ -261,7 +259,6 @@ it("publishes a normal ending and concise recap only after host confirmation, in
         day: 1,
         period: "NIGHT",
         text: "更正：2号向7号下毒",
-        hidden: false,
       })
     ).ok,
   ).toBe(true);
@@ -517,7 +514,6 @@ describe("HTTP and real Socket.IO transport", () => {
     const restored = await reconnected.state;
     expect(restored.viewer).toEqual(aState.viewer);
     expect(restored.messages).toHaveLength(1);
-    // Removing a registration is only available before a game starts.
     for (const type of ["end", "new_round"]) {
       const result = await hostClient.socket
         .timeout(2000)
@@ -751,4 +747,27 @@ it("recovers a seat over HTTP, revokes its old live socket, and rejects reused t
   expect((await recover()).ok).toBe(false);
   const obsolete = client(app.url, players[0]);
   await expect(obsolete.state).rejects.toThrow("会话无效");
+});
+
+it("locks a vote whose countdown ran out while the server was down, as soon as a device reconnects", async () => {
+  const app = await server(),
+    host = app.game.create(10, "Countdown restart");
+  const act = (session: Session, command: Parameters<typeof app.game.execute>[3]) =>
+    app.game.execute(session.code, session.token, randomUUID(), command);
+  act(host, { type: "open_registration" });
+  const players = Array.from({ length: 10 }, (_, i) => app.game.join(host.code, i + 1));
+  const view = () => app.game.view(host.code, host.token);
+  const ids = view().seats.map((s) => s.id);
+  act(host, { type: "next_phase", expectedPhaseVersion: view().storyteller!.phaseVersion });
+  act(host, { type: "open_vote", nominator: ids[0], nominee: ids[1] });
+  act(players[2], { type: "raise_hand", voteId: view().liveVote!.id, raised: true });
+  const room = app.game.store.get(host.code)!;
+  room.liveVote!.closesAt = Date.now() - 1000;
+  app.game.store.save(room);
+  const h = client(app.url, host);
+  await h.state;
+  const locked = await new Promise<RoomView>((resolve) =>
+    h.socket.on("state", (s: RoomView) => s.liveVote?.status === "COUNTING" && resolve(s)),
+  );
+  expect(locked.liveVote!.counted[ids[2]]).toBe(true);
 });

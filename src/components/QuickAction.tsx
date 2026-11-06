@@ -44,7 +44,7 @@ export default function QuickAction({
     <section className="quick-action">
       <strong>快捷处理</strong>
       <label className="field">
-        回执
+        玩家手机上显示
         <input
           aria-label={`给${room.seats.find((s) => s.id === action.seatId)?.number}号的快捷回执`}
           value={response}
@@ -57,13 +57,13 @@ export default function QuickAction({
           disabled={busy || !response.trim()}
           onClick={() => void act(effect as "poison" | "protect" | "kill")}
         >
-          {label}并回复
+          {label}
         </button>
         <button
           disabled={busy || !response.trim()}
           onClick={() => void act("none")}
         >
-          仅回复，不改变状态
+          不生效
         </button>
       </div>
       <details>
@@ -74,7 +74,7 @@ export default function QuickAction({
             checked={force}
             onChange={(e) => setForce(e.target.checked)}
           />
-          已核对醉酒、中毒、保护与角色条件，仍按此效果执行
+          我已核对，仍按这个效果执行
         </label>
       </details>
     </section>

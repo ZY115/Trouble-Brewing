@@ -4,9 +4,7 @@ import { ROLES, TEAM_NAMES, type Role } from "../../shared/roles";
 
 export interface PickerOption {
   value: string;
-  /** Chip text. */
   label: string;
-  /** Text in the closed row; defaults to the label. */
   text?: string;
   group?: string;
   tone?: string;
@@ -31,11 +29,6 @@ export const roleOptions = (roles: Role[] = ROLES, by: "id" | "name" = "id"): Pi
 
 export const valueOptions = (values: string[]): PickerOption[] => values.map((v) => ({ value: v, label: v }));
 
-/**
- * A touch-sized replacement for <select>. The row shows the current choice;
- * tapping it lays every option out as chips right underneath, so nothing hides
- * in a scrolling wheel, and picking one folds it away. Only one is open at a time.
- */
 export default function Picker({
   label,
   value,
@@ -43,6 +36,7 @@ export default function Picker({
   onChange,
   placeholder = "未选",
   clearable = true,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -50,6 +44,7 @@ export default function Picker({
   onChange: (value: string) => void;
   placeholder?: string;
   clearable?: boolean;
+  disabled?: boolean;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -72,6 +67,7 @@ export default function Picker({
       <button
         type="button"
         className="picker-row"
+        disabled={disabled}
         aria-expanded={open}
         aria-controls={id}
         onClick={() => {
@@ -87,7 +83,7 @@ export default function Picker({
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>
-      {open && (
+      {open && !disabled && (
         <div id={id} className="picker-panel" role="listbox" aria-label={label}>
           {groups.map((g) => (
             <div key={g} className={`picker-group${g ? " named" : ""}`}>

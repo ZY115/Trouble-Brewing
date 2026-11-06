@@ -40,7 +40,6 @@ export function informationItems(room: RoomView): InformationItem[] {
         history: [],
       })),
   ];
-  // Reverse first so legacy responses without timestamps still show newest first.
   return items
     .reverse()
     .sort((a, b) => b.night - a.night || b.timestamp - a.timestamp);
@@ -77,7 +76,7 @@ export function MyInfo({ room }: { room: RoomView }) {
       ))}
       {items.length > 6 && (
         <span className="pl-small">
-          共 {items.length} 条，可在菜单查看完整信息记录。
+          共 {items.length} 条，完整记录在「记录 → 我的信息」。
         </span>
       )}
 

@@ -6,6 +6,7 @@ export const notebookCommands = new Set([
   "save_notebook",
   "add_note",
   "edit_notebook",
+  "set_verdict",
 ]);
 export const privateToolCommands = new Set([
   ...notebookCommands,

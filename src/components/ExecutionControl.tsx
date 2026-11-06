@@ -22,7 +22,7 @@ export default function ExecutionControl({
     <details className="execution-control">
       <summary>手动处决 {seat.number} 号</summary>
       <p className="muted">
-        登记处决结果；未完成的计票将取消。补录已登记的死亡时，勾选“因本次处决死亡”。
+        进行中的投票会被取消。
       </p>
       <label className="check-line">
         <input
@@ -33,7 +33,7 @@ export default function ExecutionControl({
         因本次处决死亡（含补录）
       </label>
       <label className="field">
-        公开原因
+        处决原因（必填，会公开）
         <input
           aria-label={`处决 ${seat.number} 号原因`}
           maxLength={200}

@@ -1,7 +1,8 @@
 import { useState } from "react";
+import Picker, { roleOptions } from "../ui/Picker";
 import { Check, Shuffle, AlertCircle, Save } from "lucide-react";
 import presets from "../../shared/presets.json";
-import { ROLES, TEAM_NAMES, roleName } from "../../shared/roles";
+import { ROLES, TEAM_NAMES } from "../../shared/roles";
 import {
   randomSetup,
   defaultBluffs,
@@ -15,11 +16,11 @@ import type { Send } from "../useRoom";
 export default function SetupPanel({
   room,
   send,
-  showQr,
+  onSaved,
 }: {
   room: RoomView;
   send: Send;
-  showQr: () => void;
+  onSaved?: () => void;
 }) {
   const [draft, setDraft] = useState<Setup>(() =>
     structuredClone(room.storyteller!.setup),
@@ -29,6 +30,7 @@ export default function SetupPanel({
   const locked =
     room.registration.open || !["LOBBY", "SETUP"].includes(room.phase);
   const issues = validateSetup(room.capacity, draft);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(room.storyteller!.setup);
   const expected = expectedCounts(
     room.capacity,
     draft.roleIds.includes("baron"),
@@ -64,20 +66,6 @@ export default function SetupPanel({
         <span className="tag">{room.capacity} 人剧本</span>
       </div>
       <button
-        className="scan-button"
-        disabled={busy || locked}
-        onClick={async () => {
-          setBusy(true);
-          if (await send({ type: "save_setup", setup: draft })) {
-            setSaved(true);
-            showQr();
-          }
-          setBusy(false);
-        }}
-      >
-        保存配板并展示二维码
-      </button>
-      <button
         disabled={locked || busy}
         onClick={() => {
           let next = randomSetup(room.capacity);
@@ -94,9 +82,6 @@ export default function SetupPanel({
       >
         随机生成新配板
       </button>
-      <p className="muted">
-        按人数与男爵规则生成合法组合，酒鬼认知和假身份一并配置；可自行调整，不代表平衡保证。
-      </p>
       <details>
         <summary>预设配板（每人数 12 套）</summary>
         <div className="preset-grid">
@@ -161,57 +146,45 @@ export default function SetupPanel({
           </div>
         ))}
         {draft.roleIds.includes("drunk") && (
-          <label className="field">
-            酒鬼看到的镇民身份
-            <select
-              disabled={locked}
-              value={draft.drunkAs}
-              onChange={(e) =>
-                change({
-                  ...draft,
-                  drunkAs: e.target.value,
-                  bluffs: defaultBluffs(draft.roleIds, e.target.value),
-                })
-              }
-            >
-              {ROLES.filter(
-                (r) => r.team === "townsfolk" && !draft.roleIds.includes(r.id),
-              ).map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Picker
+            label="酒鬼看到的镇民身份"
+            disabled={locked}
+            value={draft.drunkAs}
+            options={roleOptions(ROLES.filter((r) => r.team === "townsfolk" && !draft.roleIds.includes(r.id)))}
+            onChange={(v) =>
+              change({
+                ...draft,
+                drunkAs: v,
+                bluffs: defaultBluffs(draft.roleIds, v),
+              })
+            }
+            clearable={false}
+          />
         )}
         <div className="bluffs">
           <h4>恶魔的三个假身份</h4>
-          <p>仅在说书人确认首夜信息发放后，对小恶魔显示。</p>
           <div className="bluff-selects">
             {[0, 1, 2].map((index) => (
-              <select
+              <Picker
                 key={index}
-                aria-label={`恶魔假身份${index + 1}`}
+                label={`假身份 ${index + 1}`}
                 disabled={locked}
                 value={draft.bluffs[index] ?? ""}
-                onChange={(e) => {
+                options={roleOptions(
+                  ROLES.filter(
+                    (r) =>
+                      ["townsfolk", "outsider"].includes(r.team) &&
+                      !draft.roleIds.includes(r.id) &&
+                      draft.drunkAs !== r.id,
+                  ),
+                )}
+                onChange={(v) => {
                   const bluffs = [...draft.bluffs];
-                  bluffs[index] = e.target.value;
+                  bluffs[index] = v;
                   change({ ...draft, bluffs });
                 }}
-              >
-                <option value="">请选择</option>
-                {ROLES.filter(
-                  (r) =>
-                    ["townsfolk", "outsider"].includes(r.team) &&
-                    !draft.roleIds.includes(r.id) &&
-                    draft.drunkAs !== r.id,
-                ).map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {roleName(r.id)}
-                  </option>
-                ))}
-              </select>
+                placeholder="请选择"
+              />
             ))}
           </div>
         </div>
@@ -226,36 +199,42 @@ export default function SetupPanel({
                 </p>
               ))
             ) : (
-              <p>人数与身份配置符合标准规则。预设不代表胜率保证。</p>
+              <p>人数与身份配置符合标准规则。</p>
             )}
           </div>
         </div>
+        {(issues.some((i) => i.level === "error") || !!draft.overrideReason) && (
         <label className="field">
-          房规说明（采用非标准阵营配置时填写）
+          房规说明（非标准配置需要填写）
           <textarea
             disabled={locked}
             value={draft.overrideReason}
             onChange={(e) =>
               change({ ...draft, overrideReason: e.target.value })
             }
-            placeholder="说明这次修改的原因；会保留在说书人事件记录中。"
+            placeholder="写下修改原因。"
           />
         </label>
-        <div className="form-footer">
+        )}
+        <div className={`form-footer setup-footer${dirty ? " dirty" : ""}`}>
           <span>
             {locked
-              ? "入场已开放或身份已发放；配板已锁定"
+              ? "已开放入场或已发身份，配板不能再改"
               : saved
                 ? "✓ 配板已保存"
-                : "保存后在房间总览开放入场"}
+                : dirty
+                  ? "有改动还没保存"
+                  : "当前就是已保存的配板"}
           </span>
           <button
             className="primary"
             disabled={locked || busy}
             onClick={async () => {
               setBusy(true);
-              setSaved(await send({ type: "save_setup", setup: draft }));
+              const ok = await send({ type: "save_setup", setup: draft });
+              setSaved(ok);
               setBusy(false);
+              if (ok) onSaved?.();
             }}
           >
             <Save size={16} />

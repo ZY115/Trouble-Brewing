@@ -26,15 +26,7 @@ export default function PublicRoster({ room }: { room: RoomView }) {
         </thead>
         <tbody>
           {room.seats.map((s) => (
-            <tr
-              className={
-                room.liveVote?.status === "COUNTING" &&
-                room.liveVote.order[room.liveVote.cursor] === s.id
-                  ? "counting-row"
-                  : ""
-              }
-              key={s.id}
-            >
+            <tr key={s.id}>
               <th scope="row">{s.number} 号</th>
               <td>{s.alive ? "存活" : "死亡"}</td>
               <td>{s.alive ? "—" : s.deadVoteAvailable ? "1 票" : "已用完"}</td>

@@ -5,7 +5,6 @@ export interface CheckItem {
   text: string;
 }
 
-/** The single focus of the storyteller's screen: what happened, then one decision. */
 export function TaskCard({
   eyebrow,
   title,
@@ -40,7 +39,6 @@ export function Checks({ items }: { items: CheckItem[] }) {
   );
 }
 
-/** One primary button, then quieter alternatives. */
 export function TaskActions({ children }: { children: ReactNode }) {
   return <div className="task-actions">{children}</div>;
 }

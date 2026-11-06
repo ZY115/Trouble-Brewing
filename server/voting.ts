@@ -7,6 +7,19 @@ function check(value: unknown, message: string): asserts value {
 }
 export const voteActive = (r: Room) =>
   r.liveVote && ["OPEN", "COUNTING"].includes(r.liveVote.status);
+export function lockHands(b: NonNullable<Room["liveVote"]>) {
+  b.status = "COUNTING";
+  b.closesAt = undefined;
+  b.counted = Object.fromEntries(
+    b.order.map((id) => [id, !!b.hands[id] && (b.eligibleAtVote?.includes(id) ?? true)]),
+  );
+}
+export function lockIfDue(r: Room, now = Date.now()) {
+  const b = r.liveVote;
+  if (!b || b.status !== "OPEN" || b.closesAt === undefined || now < b.closesAt) return false;
+  lockHands(b);
+  return true;
+}
 export function refreshDeadVotes(r: Room) {
   const effective = r.publicRecords.filter(
     (e) =>
@@ -61,7 +74,6 @@ export function voteCommand(
         order,
         hands: {},
         counted: {},
-        cursor: 0,
         status: "OPEN",
         deadAtVote: seats.filter((s) => !s.alive).map((s) => s.id),
         eligibleAtVote: seats
@@ -74,7 +86,7 @@ export function voteCommand(
       check(!st, "玩家才能举手");
       const b = ballot(c.voteId),
         me = seat(actor);
-      check(!(actor in b.counted), "你的票已计入，不能再改变");
+      check(b.status === "OPEN", "举手已锁定，不能再改变");
       check(
         !c.raised || me.alive || me.deadVoteAvailable,
         "死者票已使用，请联系说书人核对",
@@ -82,45 +94,53 @@ export function voteCommand(
       b.hands[actor] = c.raised;
       return "更新举手状态";
     }
-    case "start_count": {
+    case "start_countdown": {
       host();
       const b = ballot(c.voteId);
-      check(b.status === "OPEN", "计票已经开始");
-      b.status = "COUNTING";
-      return "开始逐座计票";
+      check(b.status === "OPEN", "举手已经锁定");
+      b.closesAt = Date.now() + c.seconds * 1000;
+      return `全体举手倒计时 ${c.seconds} 秒`;
     }
-    case "count_vote": {
+    case "lock_vote": {
       host();
       const b = ballot(c.voteId);
+      check(b.status === "OPEN", "举手已经锁定");
+      lockHands(b);
+      return "锁定全体举手";
+    }
+    case "finish_vote": {
+      host();
+      const b = ballot(c.voteId);
+      check(b.status === "COUNTING", "请先锁定举手");
+      const chosen = new Set(c.voters);
       check(
-        b.status === "COUNTING" && b.cursor === c.cursor,
-        "计票位置已改变，请查看最新状态",
+        c.voters.every((id) => b.order.includes(id)),
+        "投票名单包含不存在的玩家",
       );
-      const id = b.order[b.cursor];
-      check(id, "计票已完成");
-      b.counted[id] = c.offlineVote ?? !!b.hands[id];
-      b.cursor++;
-      if (b.cursor === b.order.length) {
-        b.status = "FINISHED";
-        const voters = b.order.filter((id) => b.counted[id]),
-          deadVoters = voters.filter((id) => b.deadAtVote.includes(id));
-        deadVoters.forEach((id) => delete r.deadVoteOverrides[id]);
-        publicRecord(r, {
-          type: "vote",
-          nominator: b.nominator,
-          nominee: b.nominee,
-          voters,
-          deadAtVote: b.deadAtVote,
-          eligibleAtVote: b.eligibleAtVote,
-          deadVoters,
-          seatNumbers: Object.fromEntries(r.seats.map((s) => [s.id, s.number])),
-          text: `${seat(b.nominator).number}号提名${seat(b.nominee).number}号；投票：${voters.map((id) => `${seat(id).number}号`).join("、") || "无人"}（${voters.length}票）`,
-        });
-        b.recordId = r.publicRecords.at(-1)!.id;
-        refreshDeadVotes(r);
-        return "计票完成，自动发布公开记录";
-      }
-      return `计入 ${seat(id).number} 号${b.counted[id] ? "一票" : "未投票"}${c.offlineVote !== undefined ? "（线下代录）" : ""}`;
+      check(
+        c.voters.every((id) => b.eligibleAtVote?.includes(id) ?? true),
+        "名单中有玩家的死者票已用",
+      );
+      b.counted = Object.fromEntries(b.order.map((id) => [id, chosen.has(id)]));
+      b.status = "FINISHED";
+      const voters = b.order.filter((id) => chosen.has(id)),
+        deadVoters = voters.filter((id) => b.deadAtVote.includes(id));
+      deadVoters.forEach((id) => delete r.deadVoteOverrides[id]);
+      publicRecord(r, {
+        type: "vote",
+        nominator: b.nominator,
+        nominee: b.nominee,
+        voters,
+        deadAtVote: b.deadAtVote,
+        eligibleAtVote: b.eligibleAtVote,
+        deadVoters,
+        seatNumbers: Object.fromEntries(r.seats.map((s) => [s.id, s.number])),
+        text: `${seat(b.nominator).number} 号提名 ${seat(b.nominee).number} 号；投票：${voters.map((id) => `${seat(id).number} 号`).join("、") || "无人"}（${voters.length} 票）`,
+      });
+      b.recordId = r.publicRecords.at(-1)!.id;
+      refreshDeadVotes(r);
+      const changed = b.order.filter((id) => chosen.has(id) !== !!b.hands[id]).length;
+      return `确认 ${voters.length} 票${changed ? `（说书人调整 ${changed} 人）` : ""}，自动发布公开记录`;
     }
     case "cancel_vote": {
       host();
@@ -128,6 +148,8 @@ export function voteCommand(
       b.status = "CANCELLED";
       publicRecord(r, {
         type: "status",
+        nominator: b.nominator,
+        nominee: b.nominee,
         text: `对 ${seat(b.nominee).number} 号的投票已取消：${c.reason}`,
       });
       return `取消投票：${c.reason}`;

@@ -1,4 +1,3 @@
-// Pinned Tiny Grimoire reference: tests/fixtures/tb-night-order.json.
 export const FIRST_NIGHT_ORDER = [
   "poisoner",
   "washerwoman",

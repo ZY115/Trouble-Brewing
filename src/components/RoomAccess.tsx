@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Picker, { seatOptions } from "../ui/Picker";
 import QRCode from "react-qr-code";
 import type { RoomView, Session } from "../../shared/types";
 import { api } from "../useRoom";
@@ -48,42 +49,16 @@ export default function RoomAccess({
       setBusy(false);
     }
   }
-  function backup() {
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(session)], { type: "application/json" }),
-    );
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `clocktower-host-${room.code}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
   return (
     <details className="room-access">
-      <summary>恢复玩家 / 备份管理入口</summary>
+      <summary>给玩家恢复座位</summary>
       <p className="muted">
-        恢复原身份、号码和笔记；新设备接入后旧设备失效。链接15分钟内仅可使用一次，请只给该座位本人。
+        给换了手机的玩家用：让他扫码，身份、号码和笔记都会回来，旧手机随即失效。15 分钟内有效，只能用一次。
       </p>
-      <label>
-        玩家
-        <select
-          aria-label="恢复玩家号码"
-          value={seat}
-          onChange={(e) => setSeat(e.target.value)}
-        >
-          <option value="">选择号码</option>
-          {room.seats.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.number}号
-            </option>
-          ))}
-        </select>
-      </label>
+      <Picker label="玩家" value={seat} options={seatOptions(room.seats)} onChange={setSeat} placeholder="选择号码" clearable={false} />
       <button disabled={!seat || busy} onClick={() => void issue()}>
         生成一次性恢复二维码
       </button>
-      <button onClick={backup}>下载本房间管理凭据备份</button>
-      <small>备份可在另一设备的说书人入口导入，请勿发给玩家。</small>
       {error && <p role="alert">{error}</p>}
       {link && (
         <div

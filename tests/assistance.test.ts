@@ -1,5 +1,5 @@
 import { commandWithContext } from "../shared/command-context";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { Store } from "../server/store";
 import { GameService } from "../server/game";
@@ -32,9 +32,9 @@ function setup() {
   };
   const finish = () => {
     let b = view(host).liveVote!;
-    if (b.status === "OPEN") act(host, { type: "start_count", voteId: b.id });
-    while ((b = view(host).liveVote!).status === "COUNTING")
-      act(host, { type: "count_vote", voteId: b.id, cursor: b.cursor });
+    if (b.status === "OPEN") act(host, { type: "lock_vote", voteId: b.id });
+    b = view(host).liveVote!;
+    act(host, { type: "finish_vote", voteId: b.id, voters: b.order.filter((id) => b.counted[id]) });
   };
   return { game, host, players, ids, view, act, open, finish };
 }
@@ -159,26 +159,26 @@ describe("night actions have explicit recovery paths", () => {
   });
 });
 describe("phone votes with independent storyteller control", () => {
-  it("counts clockwise, locks each seat once and publishes without any notebook or chat participation", () => {
+  it("locks every hand together and publishes without any notebook or chat participation", () => {
     const { host, players, ids, view, act, open, finish } = setup();
     act(host, { type: "next_phase" });
     const b = open();
     expect(b.order[0]).toBe(ids[2]);
     expect(b.order.at(-1)).toBe(ids[1]);
     expect(() =>
-      act(players[0], { type: "start_count", voteId: b.id }),
+      act(players[0], { type: "lock_vote", voteId: b.id }),
     ).toThrow("说书人");
     act(players[2], { type: "raise_hand", voteId: b.id, raised: true });
-    act(host, { type: "start_count", voteId: b.id });
-    const packet = { type: "count_vote", voteId: b.id, cursor: 0 } as const,
+    act(players[0], { type: "raise_hand", voteId: b.id, raised: true });
+    const packet = { type: "lock_vote", voteId: b.id } as const,
       receipt = randomUUID();
     act(host, packet, receipt);
     act(host, packet, receipt);
-    expect(() => act(host, packet)).toThrow("计票位置");
+    expect(() => act(host, packet)).toThrow("已经锁定");
     expect(() =>
       act(players[2], { type: "raise_hand", voteId: b.id, raised: false }),
-    ).toThrow("已计入");
-    act(players[0], { type: "raise_hand", voteId: b.id, raised: true });
+    ).toThrow("已锁定");
+    expect(view(host).liveVote!.counted[ids[2]]).toBe(true);
     finish();
     const record = view(players[9]).publicRecords.at(-1)!;
     expect(record.voters).toEqual([ids[2], ids[0]]);
@@ -189,18 +189,63 @@ describe("phone votes with independent storyteller control", () => {
       act(players[0], { type: "raise_hand", voteId: b.id, raised: false }),
     ).toThrow("投票已结束");
   });
+  it("locks every hand when the shared countdown ends, then publishes the storyteller's corrected count", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-05T12:00:00Z"));
+    try {
+      const { game, host, players, ids, view, act, open } = setup();
+      act(host, { type: "set_alive", seatId: ids[5], alive: false });
+      act(host, { type: "next_phase" });
+      const b = open();
+      expect(() => act(players[0], { type: "start_countdown", voteId: b.id, seconds: 10 })).toThrow("说书人");
+      act(host, { type: "start_countdown", voteId: b.id, seconds: 10 });
+      expect(view(players[3]).liveVote!.closesInMs).toBe(10000);
+      expect(game.voteClosesAt(host.code)).toBe(Date.now() + 10000);
+      vi.advanceTimersByTime(9000);
+      act(players[3], { type: "raise_hand", voteId: b.id, raised: true });
+      expect(game.lockDueVote(host.code)).toBe(false);
+      vi.advanceTimersByTime(1000);
+      expect(game.lockDueVote(host.code)).toBe(true);
+      expect(game.lockDueVote(host.code)).toBe(false);
+      expect(game.voteClosesAt(host.code)).toBeUndefined();
+      expect(() => act(players[4], { type: "raise_hand", voteId: b.id, raised: true })).toThrow("已锁定");
+      const locked = view(host).liveVote!;
+      expect(locked.status).toBe("COUNTING");
+      expect(locked.order.filter((id) => locked.counted[id])).toEqual([ids[3]]);
+      act(host, { type: "finish_vote", voteId: b.id, voters: [ids[3], ids[4], ids[5]] });
+      const record = view(players[0]).publicRecords.at(-1)!;
+      expect(record.voters).toEqual([ids[3], ids[4], ids[5]]);
+      expect(record.deadVoters).toEqual([ids[5]]);
+      expect(view(host).seats[5].deadVoteAvailable).toBe(false);
+      act(host, { type: "open_vote", nominator: ids[2], nominee: ids[3] });
+      const next = view(host).liveVote!;
+      act(host, { type: "lock_vote", voteId: next.id });
+      expect(() => act(host, { type: "finish_vote", voteId: next.id, voters: [ids[5]] })).toThrow("死者票已用");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("locks a countdown that ran out while the server was not watching", () => {
+    vi.useFakeTimers();
+    try {
+      const { host, players, view, act, open } = setup();
+      act(host, { type: "next_phase" });
+      const b = open();
+      act(host, { type: "start_countdown", voteId: b.id, seconds: 5 });
+      vi.advanceTimersByTime(6000);
+      expect(() => act(players[0], { type: "raise_hand", voteId: b.id, raised: true })).toThrow("已锁定");
+      expect(view(host).liveVote!.status).toBe("COUNTING");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("supports offline capture and cancellation without consuming provisional dead votes", () => {
     const { host, players, ids, view, act, open } = setup();
     act(host, { type: "set_alive", seatId: ids[2], alive: false });
     act(host, { type: "next_phase" });
     const b = open();
-    act(host, { type: "start_count", voteId: b.id });
-    act(host, {
-      type: "count_vote",
-      voteId: b.id,
-      cursor: 0,
-      offlineVote: true,
-    });
+    act(players[2], { type: "raise_hand", voteId: b.id, raised: true });
+    act(host, { type: "lock_vote", voteId: b.id });
     expect(() => act(host, { type: "next_phase" })).toThrow("当前投票");
     expect(() => open()).toThrow("当前投票");
     act(host, { type: "cancel_vote", voteId: b.id, reason: "线下已重新提名" });
@@ -252,5 +297,18 @@ describe("phone votes with independent storyteller control", () => {
     act(host, { type: "new_round" });
     expect(view(host).liveVote).toBeUndefined();
     expect(view(host).seats.every((s) => s.deadVoteAvailable)).toBe(true);
+  });
+});
+
+describe("a cancelled vote still counts as a nomination", () => {
+  it("keeps who nominated whom on the public record", () => {
+    const { host, ids, view, act, open } = setup();
+    act(host, { type: "next_phase" });
+    const b = open();
+    act(host, { type: "cancel_vote", voteId: b.id, reason: "提名者撤回" });
+    const record = view(host).publicRecords.at(-1)!;
+    expect(record.type).toBe("status");
+    expect(record.nominator).toBe(ids[0]);
+    expect(record.nominee).toBe(ids[1]);
   });
 });

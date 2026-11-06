@@ -1,3 +1,4 @@
+import { replanSeat } from "./night-plan";
 import {
   publishLife,
   setLife,
@@ -10,7 +11,7 @@ import { isEvil, roleById } from "../shared/roles";
 import type { Command } from "../shared/commands";
 import type { Room } from "./game";
 import { publicRecord } from "./public-records";
-import { voteActive } from "./voting";
+import { lockHands, voteActive } from "./voting";
 function check(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
 }
@@ -60,6 +61,7 @@ export function storytellerCommand(
         check(!voteActive(r), "请先取消或完成当前投票，再改变生死状态");
       }
       setLife(r, s.id, c.alive);
+      replanSeat(r, s.id, r.assignments[s.id]?.perceivedRoleId ?? "", c.perceivedRoleId);
       r.assignments[s.id] = {
         actualRoleId: c.actualRoleId,
         perceivedRoleId: c.perceivedRoleId,
@@ -91,9 +93,11 @@ export function storytellerCommand(
         r.liveVote!.status = "CANCELLED";
         publicRecord(r, {
           type: "status",
-          text: "说书人手动处决，取消尚未完成的计票。",
+          text: "进行中的投票已取消。",
         });
       }
+      const nominee = c.nominee ? r.seats.find((x) => x.id === c.nominee) : undefined;
+      check(!c.nominee || nominee, "被提名的玩家不存在");
       const died = c.died ?? s.alive;
       const execution = {
         id: randomUUID(),
@@ -104,11 +108,19 @@ export function storytellerCommand(
         impaired: !!(r.conditions[s.id]?.poisoned || r.conditions[s.id]?.drunk),
         reason: c.reason,
         publicRecordId: "",
+        ...(nominee ? { nominee: nominee.id } : {}),
       };
-      publicRecord(r, {
-        type: "execution",
-        text: `说书人登记 ${s.number} 号处决${died ? "，因处决死亡（含补录）" : "，处决未导致死亡"}：${c.reason}`,
-      });
+      publicRecord(r, nominee
+        ? {
+            type: "execution",
+            nominator: s.id,
+            nominee: nominee.id,
+            text: `${s.number} 号提名 ${nominee.number} 号后立即被处决${died ? "" : "，但没有死亡"}。`,
+          }
+        : {
+            type: "execution",
+            text: `${s.number} 号被处决${c.reason ? `（${c.reason}）` : ""}${died ? "" : "，但没有死亡"}。`,
+          });
       execution.publicRecordId = r.publicRecords.at(-1)!.id;
       r.executions.push(execution);
       if (died) setLife(r, s.id, false);
@@ -122,7 +134,7 @@ export function storytellerCommand(
           r.liveVote.status === "OPEN",
         "当前没有等待计票的提名",
       );
-      r.liveVote.status = "COUNTING";
+      lockHands(r.liveVote);
       publicRecord(r, {
         type: "status",
         text: `说书人强制进入本次提名计票：${c.reason}`,

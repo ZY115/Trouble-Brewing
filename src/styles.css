@@ -1,5 +1,3 @@
-/* 暗流涌动 · 夜幕黄铜。说书人与玩家共用一套暗色设计；玩家端刻意保持安静：
-   不闪烁、不使用显眼的彩色提醒，所有人在同一时刻看到同样结构的画面。 */
 :root {
   --bg: #0e1014;
   --bg-deep: #08090b;
@@ -226,12 +224,8 @@ dialog ul {
   color: var(--text-2);
 }
 
-/* ---------- 通用旧类名（保留下来的组件会用到） ---------- */
 .muted {
   color: var(--muted);
-}
-.serif {
-  font-family: var(--serif);
 }
 .panel {
   background: var(--card);
@@ -386,14 +380,6 @@ dialog ul {
   flex-direction: column;
   gap: 12px;
 }
-.modal-close {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  min-height: 40px;
-  width: 40px;
-  padding: 0;
-}
 .condition-options,
 .seat-checkboxes {
   display: flex;
@@ -401,7 +387,6 @@ dialog ul {
   gap: 4px 16px;
 }
 
-/* ---------- 入口 ---------- */
 .access-page {
   min-height: 100dvh;
   display: flex;
@@ -462,7 +447,6 @@ dialog ul {
   color: var(--text);
 }
 
-/* ---------- 圆桌 ---------- */
 .grimoire {
   position: relative;
   width: 100%;
@@ -481,7 +465,6 @@ dialog ul {
   position: absolute;
   left: var(--x);
   top: var(--y);
-  /* The token's centre sits on the seat point; labels grow outward. */
   transform: translate(-50%, calc(var(--tok) / -2));
   width: clamp(56px, 15cqi, 104px);
   display: flex;
@@ -576,6 +559,9 @@ dialog ul {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-deep);
+}
+.g-seat.off .g-token {
+  opacity: 0.35;
 }
 .g-seat.selected .g-token {
   background: var(--accent);
@@ -692,7 +678,6 @@ dialog ul {
   z-index: 1;
 }
 
-/* ---------- 说书人外壳 ---------- */
 .st-shell {
   min-height: 100dvh;
   display: flex;
@@ -775,20 +760,6 @@ dialog ul {
 .st-alerts:empty {
   display: none;
 }
-.rule-reminders {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.rule-notice {
-  border-color: var(--accent);
-  background: var(--card);
-}
-.rule-notice strong {
-  color: var(--accent);
-  width: 100%;
-}
-.life-announcements,
 .day-timer {
   background: var(--card);
   border: 1px solid var(--line);
@@ -811,7 +782,6 @@ dialog ul {
 .timer-form input {
   width: 80px;
 }
-/* ---------- 抽屉 ---------- */
 .drawer-backdrop {
   position: fixed;
   inset: 0;
@@ -934,47 +904,6 @@ dialog ul {
   border-top: 1px solid var(--line);
   padding-top: 6px;
 }
-.check-list {
-  border-radius: 12px;
-  background: #11141a;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.check-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--text-2);
-  line-height: 1.5;
-}
-.check-item i {
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
-  border-radius: 50%;
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-style: normal;
-  font-size: 9px;
-  font-weight: 700;
-  background: var(--ok-bg);
-  color: var(--ok);
-}
-.check-item.warn i {
-  background: #4a3a18;
-  color: #f1d29a;
-}
-
-/* ---------- 白天 ---------- */
-.nominate-card,
-.vote-stage .live-voting {
-  border-color: var(--line-2);
-}
 .live-voting h3 {
   font-size: 20px;
 }
@@ -989,7 +918,6 @@ dialog ul {
   color: var(--accent);
 }
 
-/* ---------- 开局 ---------- */
 .lobby-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
@@ -1082,7 +1010,6 @@ dialog ul {
   color: var(--danger);
 }
 
-/* 配板 */
 .preset-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -1154,7 +1081,7 @@ dialog ul {
 }
 .bluff-selects {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr;
   gap: 8px;
 }
 .validation {
@@ -1165,7 +1092,6 @@ dialog ul {
   color: #f1d29a;
 }
 
-/* 表格 */
 .table-scroll {
   overflow-x: auto;
   padding: 0;
@@ -1212,7 +1138,6 @@ dialog ul {
   padding: 4px 0;
 }
 
-/* 记录 */
 .public-timeline {
   display: flex;
   flex-direction: column;
@@ -1232,14 +1157,6 @@ dialog ul {
   border-top: 1px solid var(--line);
   padding: 8px 0;
 }
-
-/* 聊天 */
-.chat-layout {
-  display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  gap: 12px;
-  min-height: 420px;
-}
 .contacts {
   display: flex;
   flex-direction: column;
@@ -1254,18 +1171,6 @@ dialog ul {
 .contacts button[aria-current="true"] {
   background: var(--raised);
   border-color: var(--line-2);
-}
-.contact-avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 1px solid var(--line-3);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--serif);
-  font-size: 13px;
-  flex: none;
 }
 .nav-count {
   margin-left: auto;
@@ -1349,34 +1254,6 @@ dialog ul {
   gap: 12px;
 }
 
-/* 笔记 */
-.notebook-page {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.note-entry,
-.note-editor,
-.note-revision {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.note-text {
-  white-space: pre-wrap;
-  line-height: 1.6;
-}
-.personal-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-/* 恢复 / 备份 */
 .room-access {
   display: flex;
   flex-direction: column;
@@ -1413,7 +1290,6 @@ dialog ul {
   max-width: 420px;
 }
 
-/* ---------- 玩家端：安静、统一 ---------- */
 .pl-shell {
   min-height: 100dvh;
   background: var(--bg-deep);
@@ -1538,22 +1414,10 @@ dialog ul {
   color: var(--text-2);
   flex: 0 1 28px;
 }
-.pl-vote-strip span.yes {
+.pl-vote-strip span.up {
   background: var(--text-2);
   border-color: var(--text-2);
   color: var(--bg);
-}
-.pl-vote-strip span.no {
-  background: #2a2e37;
-  border-color: #2a2e37;
-  color: var(--dim);
-}
-.pl-vote-strip span.now {
-  border: 2px solid var(--text);
-}
-.pl-vote-strip span.up {
-  border-style: dashed;
-  border-color: var(--text-2);
 }
 .pl-hand {
   min-height: 72px;
@@ -1606,7 +1470,6 @@ dialog ul {
   margin: 0 auto;
 }
 
-/* ---------- 说书人：左圆桌，右一张任务卡 ---------- */
 .st-body.lobby {
   flex: 1;
 }
@@ -1638,7 +1501,6 @@ dialog ul {
   line-height: 1;
 }
 .board-hint {
-  /* The bottom seat's label and markers hang below the circle. */
   margin-top: 22px;
   font-size: 12px;
   color: var(--muted);
@@ -1685,7 +1547,6 @@ dialog ul {
   border-color: var(--accent);
 }
 
-/* 任务卡 */
 .task-card {
   background: var(--card);
   border: 1px solid var(--accent);
@@ -1865,10 +1726,56 @@ dialog ul {
 .vote-tally {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 10px;
 }
+.vote-countdown {
+  margin-left: auto;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.vote-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: 8px;
+}
+.vote-grid > * {
+  min-height: 48px;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: #11141a;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.vote-grid > .on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.vote-grid > .dead {
+  border-style: dashed;
+}
+.vote-grid > .changed {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text-2);
+}
+.vote-grid > :disabled {
+  opacity: 0.45;
+}
+.vote-grid small {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+}
 
-/* 后续队列 */
 .queue {
   display: flex;
   flex-direction: column;
@@ -1914,7 +1821,6 @@ dialog ul {
   color: var(--muted);
 }
 
-/* 座位面板 */
 .seat-panel {
   background: var(--card);
   border: 1px solid var(--line-2);
@@ -2020,7 +1926,6 @@ dialog ul {
   max-height: 260px;
 }
 
-/* ---------- 响应式 ---------- */
 .st-tabs {
   display: none;
 }
@@ -2032,7 +1937,7 @@ dialog ul {
   font-size: 13px;
   color: var(--text-2);
 }
-@media (max-width: 1099px), (max-aspect-ratio: 1/1) {
+@media (max-width: 899px), (max-aspect-ratio: 1/1) {
   .st-main {
     grid-template-columns: minmax(0, 1fr);
     padding: 12px 16px 24px;
@@ -2075,13 +1980,9 @@ dialog ul {
     font-size: 0;
     gap: 0;
   }
-  .chat-layout {
-    grid-template-columns: 1fr;
-  }
   .task-title {
     font-size: 24px;
   }
-  /* The queue under the card already shows progress; keep the top bar on one line. */
   .phase-pill .progress {
     display: none;
   }
@@ -2105,7 +2006,6 @@ dialog ul {
   white-space: nowrap;
 }
 
-/* ---------- 玩家：圆桌即笔记 ---------- */
 .pl-top .pl-phase {
   color: var(--text-2);
 }
@@ -2134,7 +2034,6 @@ dialog ul {
   text-overflow: ellipsis;
   color: var(--text-2);
 }
-/* My read shows as a quiet edge colour: legible to me, not across the table. */
 .pl-circle .g-seat.town .g-token {
   border: 2px solid #5f7ea6;
   background: #131a23;
@@ -2201,7 +2100,6 @@ dialog ul {
   color: var(--text-2);
 }
 
-/* 底栏：四个同样的按钮，按住才显示私密内容 */
 .pl-dock {
   position: sticky;
   bottom: 0;
@@ -2261,7 +2159,6 @@ dialog ul {
   font-weight: 700;
 }
 
-/* 座位笔记：从底部升起的一张纸 */
 .sheet-overlay {
   position: fixed;
   inset: 0;
@@ -2515,7 +2412,6 @@ dialog ul {
   color: var(--text-2);
 }
 
-/* 笔记总表 */
 .records-tabs {
   flex: none;
 }
@@ -2586,7 +2482,6 @@ dialog ul {
   color: var(--dim);
 }
 
-/* The phase jump in the top bar is an escape hatch; the task card owns the main action. */
 .st-top .phase-controls > button.primary {
   background: transparent;
   border-color: var(--line-3);
@@ -2605,7 +2500,6 @@ dialog ul {
   stroke: var(--text-2);
 }
 
-/* 选择器：代替原生下拉框，选项直接摊开成大按钮 */
 .picker {
   display: flex;
   flex-direction: column;
@@ -2734,7 +2628,6 @@ dialog ul {
   align-self: flex-start;
 }
 
-/* 私聊：会话列表，最新的在最上面 */
 .inbox,
 .inbox-start {
   display: flex;
@@ -2843,8 +2736,7 @@ dialog ul {
   align-items: center;
   justify-content: center;
 }
-.inbox-empty,
-.inbox-note {
+.inbox-empty {
   margin: 0;
   padding: 14px 2px;
   font-size: 13px;
@@ -2897,7 +2789,6 @@ dialog ul {
   color: var(--text);
 }
 
-/* 打开某个会话时，消息区占满屏幕，输入框贴底 */
 .sheet.thread-open {
   overflow: hidden;
 }
@@ -2943,7 +2834,6 @@ dialog ul {
   align-self: flex-end;
 }
 
-/* ---------- 结束与复盘 ---------- */
 .top-end {
   min-height: 40px;
   padding: 0 14px;
@@ -3169,9 +3059,6 @@ button.danger-fill:hover:not(:disabled) {
   line-height: 1.65;
   color: var(--text-2);
 }
-.recap-entry.hidden p {
-  color: var(--dim);
-}
 .recap-tools {
   display: flex;
   flex-wrap: wrap;
@@ -3182,13 +3069,6 @@ button.danger-fill:hover:not(:disabled) {
 .recap-add .link-button {
   min-height: 30px;
   font-size: 12px;
-}
-.recap-hidden-tag {
-  padding: 1px 6px;
-  border-radius: 6px;
-  border: 1px solid var(--line-2);
-  font-size: 11px;
-  color: var(--dim);
 }
 .recap-editor {
   display: flex;
@@ -3313,7 +3193,6 @@ button.danger-fill:hover:not(:disabled) {
   .st-top .brand {
     display: none;
   }
-  /* Two rows on a phone: where we are, then the two ways forward side by side. */
   .st-top:has(.top-end) {
     flex-wrap: wrap;
     row-gap: 8px;
@@ -3341,4 +3220,335 @@ button.danger-fill:hover:not(:disabled) {
 }
 .seating-rows .changed .picker-value {
   color: var(--accent);
+}
+
+.undo-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: calc(100% - 32px);
+  padding: 6px 6px 6px 18px;
+  border-radius: 999px;
+  background: #1c2028;
+  border: 1px solid var(--line-3);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  font-size: 14px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.undo-toast button {
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 18px;
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+.op-toast {
+  position: fixed;
+  top: 68px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: min(560px, calc(100% - 32px));
+  padding: 8px 16px;
+  border-radius: 18px;
+  background: #1c2028;
+  border: 1px solid var(--line-3);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+  pointer-events: none;
+}
+.op-toast.quiet {
+  top: 50px;
+  padding: 4px 12px;
+  background: var(--bg-deep);
+  border: none;
+  box-shadow: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+@media (min-width: 900px) and (min-aspect-ratio: 1/1) {
+  .undo-toast {
+    left: auto;
+    right: 24px;
+    transform: none;
+  }
+}
+@media (max-width: 899px), (max-aspect-ratio: 1/1) {
+  .undo-toast {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+}
+.conn-note {
+  margin: 0;
+  font-size: 13px;
+  color: #f1d29a;
+}
+.conn-note.background {
+  color: var(--muted);
+}
+.publish-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.publish-confirm .task-note {
+  margin: 0;
+}
+.round-history {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.round-history h3 {
+  margin: 0;
+}
+.round-records {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+.round-records li {
+  display: flex;
+  gap: 10px;
+}
+
+.join-numbers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 6px 0 14px;
+}
+.join-numbers button {
+  min-height: 58px;
+  padding: 0;
+  flex-direction: column;
+  gap: 0;
+  border-radius: 14px;
+  background: #11141a;
+  border-color: var(--line-2);
+  font: 700 20px var(--serif);
+  color: var(--text);
+}
+.join-numbers button small {
+  font: 400 11px var(--sans);
+  color: var(--dim);
+}
+.join-numbers button.taken {
+  color: var(--dim);
+  border-style: dashed;
+}
+.join-numbers button[aria-pressed="true"],
+.registration-numbers > button[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.join-numbers button[aria-pressed="true"] small {
+  color: var(--accent-ink);
+}
+.registration-numbers > button {
+  min-height: 0;
+  padding: 8px;
+  flex-direction: column;
+  gap: 0;
+  border-radius: 12px;
+  border: 1px dashed var(--line-3);
+  background: transparent;
+  font-size: 12px;
+  color: var(--muted);
+}
+.registration-numbers > button strong {
+  font-family: var(--serif);
+  font-size: 18px;
+  color: var(--text);
+}
+.registration-numbers .mine {
+  border: 2px solid var(--accent);
+  color: var(--accent);
+}
+.registration-numbers small:empty {
+  display: none;
+}
+.registration-move {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.registration-move .primary {
+  flex: 1;
+}
+.setup-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px -16px -16px;
+  padding: 14px 16px;
+  background: #12151b;
+  border-top: 1px solid var(--line-2);
+  border-radius: 0 0 var(--radius) var(--radius);
+  font-size: 13px;
+  color: var(--muted);
+}
+.setup-footer.dirty span {
+  color: var(--accent);
+}
+.slayer-shot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.form-grid > .picker.open,
+.two-columns > .picker.open,
+.bluff-selects > .picker.open {
+  grid-column: 1 / -1;
+}
+.inline-form > .picker {
+  flex: 1 1 220px;
+}
+.picker-row:disabled {
+  opacity: 0.55;
+}
+
+.task-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+.bluff-board {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bluff-chips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.bluff-chips button {
+  min-height: 60px;
+  padding: 6px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: #11141a;
+  color: var(--text-2);
+}
+.bluff-chips button b {
+  font-size: 15px;
+  font-weight: 600;
+}
+.bluff-chips button small {
+  font-size: 11px;
+  color: var(--dim);
+}
+.bluff-chips button.mine {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.bluff-chips button.mine small {
+  color: var(--accent-ink);
+}
+.bluff-chips button.taken:disabled {
+  opacity: 0.6;
+}
+.bluff-share {
+  min-height: 44px;
+}
+.mayor-bounce {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.answer-source {
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--dim);
+}
+.pl-shield {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.pl-shield[aria-pressed="true"] {
+  color: var(--text);
+  border-color: var(--text-2);
+}
+.shield-cover {
+  width: 100%;
+  min-height: 64px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--line-3);
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+}
+.shield-close {
+  align-self: center;
+  min-height: 36px;
+  font-size: 13px;
+}
+.composer-status {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--danger);
+}
+.top-chip.timer {
+  font-variant-numeric: tabular-nums;
+}
+.top-chip.timer.expired {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+@media (min-width: 900px) and (max-width: 1199px) and (min-aspect-ratio: 1/1) {
+  .st-main {
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 16px;
+    padding: 16px;
+  }
+  .board-circle {
+    min-width: 0;
+  }
+}
+.note-error,
+.note-draft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+}
+.note-draft .link-button,
+.note-error .link-button {
+  min-height: 32px;
+  font-size: 13px;
+}
+.note-restore {
+  float: right;
+  min-height: 28px;
+  font-size: 12px;
 }

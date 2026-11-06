@@ -6,11 +6,11 @@ import { playerWorkspace, storytellerWorkbench } from "./workspace";
 import { phaseReview } from "../shared/phase-review";
 import { choiceKindForRole } from "../shared/action-choice";
 import { publishLife, setLife } from "./life";
-import { planCommand } from "./night-plan";
+import { planCommand, refreshConditionalItems } from "./night-plan";
 import { informationReference } from "./information";
 import { storytellerCommand } from "./storyteller";
-import { completedAction, privateToolCommands } from "../shared/assistance";
-import { voteActive, voteCommand } from "./voting";
+import { completedAction, privateToolCommands, notebookCommands } from "../shared/assistance";
+import { lockIfDue, voteActive, voteCommand } from "./voting";
 import { nightCommand } from "./night";
 import {
   createHash,
@@ -24,7 +24,7 @@ import { publicRecord } from "./public-records";
 import { registrationStatus } from "../shared/registration";
 import presets from "../shared/presets.json";
 import { commandSchema, type Command } from "../shared/commands";
-import { isEvil, roleById } from "../shared/roles";
+import { isEvil, roleById, roleName } from "../shared/roles";
 import { validateSetup, type Setup } from "../shared/setup";
 import type {
   NightPlanItem,
@@ -51,9 +51,10 @@ interface Identity {
   seatId?: string;
 }
 export interface Room {
+  undo?: { revision: number; validThroughRevision?: number; label: string; conditions: Room["conditions"]; staleConditions: Room["staleConditions"]; redHerring?: string; effectSources?: Record<string, string> };
   roundSetup?: import("../shared/types").RoundSetup;
   initialAssignments?: Record<string, Assignment>;
-  recapLog?: (RecapEntry & { actionId?: string; includeResponse?: boolean })[];
+  recapLog?: (RecapEntry & { actionId?: string; includeResponse?: boolean; truth?: string })[];
   recapEdits?: RecapEntry[];
   recapVersion?: number;
   result?: GameResult;
@@ -110,6 +111,11 @@ export interface Room {
   messages: ChatMessage[];
   events: AuditEvent[];
   evilReleased: boolean;
+  bluffsShared?: boolean;
+  bluffClaims?: Record<string, string>;
+  claims?: Record<string, string>;
+  effectSources?: Record<string, string>;
+  verdicts?: Record<string, Record<string, "good" | "evil">>;
   applied: string[];
 }
 const hash = (token: string) =>
@@ -140,12 +146,15 @@ export class GameService {
     private debugEnabled = false,
   ) {}
   room(code: string) {
-    const room = this.store.get(code.toUpperCase());
+    const room = this.store.get(code.toUpperCase(), false);
     requireThat(room, "房间不存在");
     room.deathEvents ??= [];
     room.dismissedNotices ??= [];
     room.staleConditions ??= [];
     room.evilInfoSent ??= false;
+    room.bluffClaims ??= {};
+    room.claims ??= {};
+    room.effectSources ??= {};
     room.recoveryTickets ??= {};
     room.gameNo ??= 1;
     room.contextVersion ??= 0;
@@ -153,8 +162,6 @@ export class GameService {
     room.publishedAlive ??= {};
     room.seats.forEach((s) => (room.publishedAlive[s.id] ??= s.alive));
     room.nightPlan ??= [];
-    // Older saves may have marked completed predecessor items as skipped.
-    // Keep their recorded labels, but close the restore/restart path as well.
     for (const item of room.nightPlan) {
       if (
         !item.retiredReason &&
@@ -298,8 +305,6 @@ export class GameService {
     )
       return;
     this.validateForDeal(r);
-    // Older clients allowed tools during registration. Those entries are not
-    // game notes and must not follow a changed seat number into the new game.
     r.notes = {};
     r.notebooks = {};
     r.messages = [];
@@ -330,7 +335,8 @@ export class GameService {
     const good = r.seats.filter(
       (s) => !isEvil(r.assignments[s.id].actualRoleId),
     );
-    if (good.length) r.redHerring = good[randomInt(good.length)].id;
+    const teller = Object.values(r.assignments).some((a) => a.perceivedRoleId === "fortuneteller");
+    r.redHerring = teller && good.length ? good[randomInt(good.length)].id : undefined;
     r.contextVersion++;
     r.phaseVersion++;
     r.phase = "FIRST_NIGHT";
@@ -394,8 +400,6 @@ export class GameService {
       r.debugSeatIds?.includes(seatId) && r.seats.some((s) => s.id === seatId),
       "只能打开测试玩家",
     );
-    // Stable per host and synthetic seat, without storing plaintext credentials.
-    // Separate tabs of the same test player can reconnect without revoking one another.
     const playerToken = createHmac("sha256", bearer)
       .update(`clocktower-debug:${r.code}:${seatId}`)
       .digest("base64url");
@@ -471,10 +475,11 @@ export class GameService {
       ),
     };
   }
-  view(code: string, bearer: string): RoomView {
+  view(code: string, bearer: string, includeHistory = true): RoomView {
     const r = this.room(code);
     const viewer = this.authenticate(r, bearer);
     const st = viewer.kind === "storyteller";
+    if (st && includeHistory) r.archives = this.store.archives(code);
     const waiting = !st && ["LOBBY", "SETUP"].includes(r.phase);
     const me = viewer.seatId ?? "storyteller";
     const evil =
@@ -537,7 +542,12 @@ export class GameService {
         : r.archives.flatMap((a) => (a.recap ? [a.recap] : [])),
       gameNo: r.gameNo,
       playId: waiting ? undefined : r.playId,
-      liveVote: waiting ? undefined : r.liveVote,
+      liveVote:
+        waiting || !r.liveVote
+          ? undefined
+          : r.liveVote.closesAt === undefined
+            ? r.liveVote
+            : { ...r.liveVote, closesInMs: Math.max(0, r.liveVote.closesAt - Date.now()) },
       groups,
       invitations:
         st || waiting
@@ -590,10 +600,12 @@ export class GameService {
     };
     if (st)
       view.storyteller = {
+        archiveGames: this.store.archiveGames(code),
+        undo: r.undo && (r.undo.validThroughRevision ?? r.undo.revision) === r.revision ? { revision: r.undo.revision, label: r.undo.label } : undefined,
         canStartNextRound: r.phase === "ENDED",
         endReview: endReview(r),
         recapPreview: Object.keys(r.assignments).length
-          ? buildRecap(r, true)
+          ? buildRecap(r)
           : undefined,
         ...(this.debugEnabled
           ? { debug: { seatIds: r.debugSeatIds ?? [] } }
@@ -614,6 +626,9 @@ export class GameService {
         redHerring: r.redHerring,
         executions: r.executions,
         dayTimer: r.dayTimer,
+        bluffsShared: !!r.bluffsShared,
+        bluffClaims: r.bluffClaims ?? {},
+        claims: r.claims ?? {},
       };
     else {
       view.self = {
@@ -625,19 +640,70 @@ export class GameService {
           ? undefined
           : r.assignments[me]?.perceivedRoleId,
         note: waiting ? "" : (r.notes[me] ?? ""),
+        verdicts: waiting ? {} : (r.verdicts?.[me] ?? {}),
       };
       if (evil) {
         view.evilMembers = r.seats
           .filter((s) => isEvil(r.assignments[s.id]?.actualRoleId))
           .map((s) => s.id);
-        if (r.assignments[me]?.actualRoleId === "imp")
-          view.self.bluffs = r.setup.bluffs;
+        const demon = r.assignments[me]?.actualRoleId === "imp";
+        if (demon) view.self.bluffs = r.setup.bluffs;
+        view.evilBluffs =
+          demon || r.bluffsShared
+            ? { roles: r.setup.bluffs, claims: r.bluffClaims ?? {}, shared: !!r.bluffsShared }
+            : { roles: [], claims: {}, shared: false };
       }
     }
     if (view.storyteller)
       view.storyteller.workbench = storytellerWorkbench(view);
     else if (!waiting) view.playerWorkspace = playerWorkspace(view);
     return view;
+  }
+  commandApplied(code: string, bearer: string, commandId: string) {
+    this.authenticate(this.room(code), bearer);
+    return this.store.hasReceipt(code, `${hash(bearer)}:${commandId}`);
+  }
+  latestUnfinished(sessions?: { code: string; token: string }[]) {
+    const rooms = sessions
+      ? sessions.flatMap((s) => {
+          const room = this.store.get(s.code, false);
+          return room?.sessions[hash(s.token)]?.kind === "storyteller" ? [room] : [];
+        })
+      : this.store.codes().flatMap((code) => this.store.get(code, false) ?? []);
+    const activeAt = (room: Room) => Date.parse(room.events.at(-1)?.timestamp ?? "") || 0;
+    const room = rooms.filter((r) => r.phase !== "ENDED").sort((a, b) => activeAt(b) - activeAt(a))[0];
+    return room && {
+      room,
+      summary: { code: room.code, capacity: room.capacity, phase: room.phase, day: room.day, activeAt: activeAt(room) },
+    };
+  }
+  resumeLatest(sessions?: { code: string; token: string }[], known = sessions ?? []) {
+    const latest = this.latestUnfinished(sessions);
+    requireThat(latest, "没有未完成的对局");
+    const own = known.find((s) => s.code === latest.room.code && latest.room.sessions[hash(s.token)]?.kind === "storyteller");
+    if (own) return { code: own.code, token: own.token };
+    const bearer = token();
+    latest.room.sessions[hash(bearer)] = { kind: "storyteller" };
+    this.store.save(latest.room);
+    return { code: latest.room.code, token: bearer };
+  }
+  history(code: string, bearer: string, gameNo: number) {
+    const room = this.room(code);
+    requireThat(this.authenticate(room, bearer).kind === "storyteller", "此操作仅限说书人");
+    const archive = this.store.archive(code, gameNo);
+    requireThat(archive, "历史对局不存在");
+    return { gameNo: archive.gameNo, recap: archive.recap, publicRecords: archive.publicRecords, seats: archive.seats };
+  }
+  voteClosesAt(code: string) {
+    const b = this.room(code).liveVote;
+    return b?.status === "OPEN" ? b.closesAt : undefined;
+  }
+  lockDueVote(code: string) {
+    const r = this.room(code);
+    if (!lockIfDue(r)) return false;
+    record(r, "storyteller", "lock_vote", "倒计时结束，锁定全体举手");
+    this.store.save(r);
+    return true;
   }
   execute(
     code: string,
@@ -652,7 +718,7 @@ export class GameService {
     const actor = identity.seatId ?? "storyteller";
     const st = identity.kind === "storyteller";
     const receipt = `${hash(bearer)}:${commandId}`;
-    if (r.applied.includes(receipt)) return this.view(code, bearer);
+    if (this.store.hasReceipt(code, receipt) || r.applied.includes(receipt)) return this.view(code, bearer, false);
     requireThat(
       expectedGame === undefined || expectedGame === r.gameNo,
       "已进入新一局，请刷新后操作",
@@ -699,7 +765,14 @@ export class GameService {
         ].includes(command.type),
       "游戏已结束",
     );
+    if (lockIfDue(r)) {
+      record(r, "storyteller", "lock_vote", "倒计时结束，锁定全体举手");
+      this.store.save(r);
+    }
+    const preserveUndo = notebookCommands.has(command.type) && r.undo && (r.undo.validThroughRevision ?? r.undo.revision) === r.revision;
     const recapBefore = recapSnapshot(r);
+    const reversible = st && ["set_condition", "set_red_herring"].includes(command.type)
+      ? structuredClone({ conditions: r.conditions, staleConditions: r.staleConditions, redHerring: r.redHerring, effectSources: r.effectSources }) : undefined;
     let detail =
       automationCommand(r, st, command) ??
       planCommand(r, st, command) ??
@@ -709,6 +782,19 @@ export class GameService {
       featureCommand(r, actor, st, command);
     if (detail === undefined)
       switch (command.type) {
+        case "undo_private_edit": {
+          requireThat(st, "此操作仅限说书人");
+          requireThat(r.undo && (r.undo.validThroughRevision ?? r.undo.revision) === r.revision && command.expectedRevision === r.undo.revision,
+            "已有后续操作，不能直接撤销；请核对后手动更正");
+          r.conditions = r.undo.conditions;
+          r.staleConditions = r.undo.staleConditions;
+          r.redHerring = r.undo.redHerring;
+          r.effectSources = r.undo.effectSources ?? {};
+          r.contextVersion++;
+          detail = `撤销未公开修改：${r.undo.label}`;
+          r.undo = undefined;
+          break;
+        }
         case "finish_game":
           finishGame(r, command);
           detail = "说书人确认本局结果";
@@ -871,8 +957,6 @@ export class GameService {
           break;
         }
         case "end":
-          // Legacy clients end without an explicit winner: never invent one or
-          // disclose the grimoire. The new finish_game command confirms normal endings.
           if (["FIRST_NIGHT", "OTHER_NIGHT", "DAY"].includes(r.phase)) {
             finishGame(r, {
               type: "finish_game",
@@ -893,6 +977,100 @@ export class GameService {
           r.evilReleased = false;
           detail = "说书人结束本局";
           break;
+        case "set_bluffs": {
+          requireThat(st, "此操作仅限说书人");
+          requireThat(r.phase === "FIRST_NIGHT" && !r.evilInfoSent, "首夜邪恶信息已经发出，假身份不能再改");
+          const inPlay = new Set(Object.values(r.assignments).flatMap((a) => [a.actualRoleId, a.actualRoleId === "drunk" ? a.perceivedRoleId : ""]));
+          requireThat(
+            new Set(command.bluffs).size === 3 &&
+              command.bluffs.every(
+                (id) =>
+                  ["townsfolk", "outsider"].includes(roleById(id)?.team ?? "") &&
+                  (!inPlay.has(id) || r.setup.bluffs.includes(id)),
+              ),
+            "假身份需要是三个不同的、不在场的善良角色",
+          );
+          r.setup = { ...r.setup, bluffs: command.bluffs };
+          for (const [seat, role] of Object.entries(r.bluffClaims ?? {}))
+            if (!command.bluffs.includes(role)) delete r.bluffClaims![seat];
+          detail = `假身份改为：${command.bluffs.map(roleName).join("、")}`;
+          break;
+        }
+        case "set_claim": {
+          requireThat(st, "此操作仅限说书人");
+          const seat = r.seats.find((s) => s.id === command.seatId);
+          requireThat(seat, "玩家不存在");
+          requireThat(command.roleId === null || roleById(command.roleId), "未知角色");
+          const claims = (r.claims ??= {});
+          if (command.roleId) claims[seat.id] = command.roleId;
+          else delete claims[seat.id];
+          detail = command.roleId ? `记下 ${seat.number} 号自称${roleName(command.roleId)}` : `清除 ${seat.number} 号的自称`;
+          break;
+        }
+        case "share_bluffs": {
+          requireThat(!st && r.evilReleased && r.assignments[actor]?.actualRoleId === "imp", "只有恶魔可以分享假身份");
+          requireThat(!r.bluffsShared, "已经分享过了");
+          r.bluffsShared = true;
+          r.messages.push({
+            id: randomUUID(),
+            sequence: ++r.messageSequence,
+            from: actor,
+            to: "evil",
+            content: `三个假身份：${r.setup.bluffs.map(roleName).join("、")}`,
+            createdAt: new Date().toISOString(),
+          });
+          detail = "恶魔把假身份分享给爪牙";
+          break;
+        }
+        case "claim_bluff": {
+          const role = r.assignments[actor]?.actualRoleId;
+          requireThat(!st && r.evilReleased && isEvil(role), "只有邪恶玩家可以认领假身份");
+          requireThat(role === "imp" || r.bluffsShared, "恶魔还没有分享假身份");
+          const claims = (r.bluffClaims ??= {});
+          if (command.roleId === null) {
+            delete claims[actor];
+            detail = "放弃认领的假身份";
+            break;
+          }
+          requireThat(r.setup.bluffs.includes(command.roleId), "只能认领三个假身份之一");
+          const holder = Object.entries(claims).find(([seat, id]) => id === command.roleId && seat !== actor)?.[0];
+          requireThat(!holder, `${roleName(command.roleId)}已被 ${r.seats.find((s) => s.id === holder)?.number} 号认领`);
+          claims[actor] = command.roleId;
+          detail = `认领假身份：${roleName(command.roleId)}`;
+          break;
+        }
+        case "slayer_shot": {
+          requireThat(st, "此操作仅限说书人");
+          requireThat(r.phase === "DAY", "猎手只能在白天开枪");
+          requireThat(!voteActive(r), "请先结束或取消当前投票");
+          const shooter = r.seats.find((s) => s.id === command.shooter);
+          const target = r.seats.find((s) => s.id === command.target);
+          requireThat(shooter && target, "玩家不存在");
+          requireThat(shooter.alive, "死亡的玩家不能发动能力");
+          requireThat(!command.kill || target.alive, "目标已经死亡");
+          if (command.kill) {
+            const condition = r.conditions[shooter.id];
+            const targetRole = r.assignments[target.id]?.actualRoleId ?? "";
+            requireThat(
+              r.assignments[shooter.id]?.actualRoleId === "slayer" &&
+                !condition?.poisoned &&
+                !condition?.drunk &&
+                !r.publicRecords.some((p) => p.shooter === shooter.id) &&
+                (roleById(targetRole)?.team === "demon" || targetRole === "recluse"),
+              "这一枪按规则不会致死：只有健康、没开过枪的真猎手射中恶魔（或被当作恶魔的隐士）才会死亡",
+            );
+          }
+          publicRecord(r, {
+            type: "status",
+            shooter: shooter.id,
+            target: target.id,
+            text: `${shooter.number} 号向 ${target.number} 号开枪${command.kill ? "" : "，没有发生任何事"}。`,
+          });
+          if (command.kill) setLife(r, target.id, false);
+          r.contextVersion++;
+          detail = `${shooter.number} 号向 ${target.number} 号开枪${command.kill ? `，${target.number} 号死亡` : "，无事发生"}`;
+          break;
+        }
         case "set_alive": {
           requireThat(!voteActive(r), "请先结束或取消当前投票再更正生死状态");
           requireThat(!["LOBBY", "SETUP"].includes(r.phase), "尚未开始");
@@ -942,6 +1120,15 @@ export class GameService {
             createdAt: new Date().toISOString(),
           });
           detail = "发送一条私密消息（正文不进入公共日志）";
+          break;
+        }
+        case "set_verdict": {
+          requireThat(!st, "判断仅限玩家");
+          requireThat(r.seats.some((s) => s.id === command.target), "玩家不存在");
+          const mine = ((r.verdicts ??= {})[actor] ??= {});
+          if (command.verdict) mine[command.target] = command.verdict;
+          else delete mine[command.target];
+          detail = "更新对座位的判断";
           break;
         }
         case "save_note":
@@ -1021,6 +1208,11 @@ export class GameService {
             "请选择正确数量的不重复目标",
           );
           requireThat(
+            !["protect", "master"].includes(action.choiceKind ?? "") ||
+              !command.targets.includes(actor),
+            "不能选择自己",
+          );
+          requireThat(
             (action.selectionVersion ?? 0) === (command.expectedVersion ?? 0),
             "目标已被修改，请查看最新状态",
           );
@@ -1076,9 +1268,18 @@ export class GameService {
     if (privateToolCommands.has(command.type) || command.type === "raise_hand")
       r.revision++;
     else record(r, actor, command.type, detail ?? command.type);
+    if (preserveUndo && r.undo) r.undo.validThroughRevision = r.revision;
+    if (reversible) {
+      const number = "seatId" in command ? r.seats.find(s => s.id === command.seatId)?.number : undefined;
+      const label = command.type === "set_condition"
+        ? `${number} 号${command.value ? "标记" : "解除"}${{ poisoned: "中毒", protected: "保护", drunk: "醉酒" }[command.condition]}`
+        : command.type === "set_red_herring" ? `占卜误判目标改为${number ? `${number} 号` : "无"}` : "状态标记";
+      r.undo = { ...reversible, revision: r.revision, label };
+    }
     r.applied.push(receipt);
+    refreshConditionalItems(r);
     this.dealIfReady(r);
     this.store.save(r);
-    return this.view(code, bearer);
+    return this.view(code, bearer, false);
   }
 }

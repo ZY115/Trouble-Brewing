@@ -3,7 +3,6 @@ import QRCode from "react-qr-code";
 import type { RoomView } from "../../shared/types";
 import { api } from "../useRoom";
 
-/** Join link for phones on the same Wi-Fi; localhost is swapped for the LAN address. */
 export function useJoinLink(room: RoomView) {
   const [base, setBase] = useState(location.origin);
   useEffect(() => {
@@ -18,14 +17,12 @@ export function useJoinLink(room: RoomView) {
         .catch(() => {});
     }
   }, []);
-  // The game number lets the server refuse a QR code left over from an earlier game.
   const path = `/join/${room.code}?g=${room.gameNo}`;
   let link = `${location.origin}${path}`;
   try {
     const url = new URL(base);
     if (["http:", "https:"].includes(url.protocol)) link = `${url.origin}${path}`;
   } catch {
-    /* Keep current origin until a valid address is entered. */
   }
   return { link, base, setBase };
 }
@@ -97,7 +94,7 @@ export default function Invitation({
       <details>
         <summary>手机扫不开？修改连接地址</summary>
         <p className="muted" style={{ fontSize: 13, margin: "6px 0" }}>
-          如果当前为 localhost，请改为电脑的局域网地址（启动终端会显示），并保留端口。
+          地址是 localhost 时手机打不开，请改成电脑的局域网地址（启动窗口里有），端口不变。
         </p>
         <input
           aria-label="邀请链接地址"

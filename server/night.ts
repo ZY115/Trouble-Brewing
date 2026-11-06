@@ -10,7 +10,8 @@ export function nightCommand(
   if (
     c.type !== "resolve_action" &&
     c.type !== "send_action_response" &&
-    c.type !== "correct_action_response"
+    c.type !== "correct_action_response" &&
+    c.type !== "set_action_targets"
   )
     return;
   if (!st) throw new Error("此操作仅限说书人");
@@ -41,6 +42,23 @@ export function nightCommand(
     completedAction(a)
   )
     throw new Error("此待办已完成或不属于当前夜晚");
+  if (c.type === "set_action_targets") {
+    if (
+      c.targets.length !== a.targetCount ||
+      new Set(c.targets).size !== c.targets.length ||
+      !c.targets.every((id) => r.seats.some((s) => s.id === id))
+    )
+      throw new Error("请选择正确数量的不重复目标");
+    if (["protect", "master"].includes(a.choiceKind ?? "") && c.targets.includes(a.seatId))
+      throw new Error("不能选择自己");
+    if ((a.selectionVersion ?? 0) !== c.expectedVersion)
+      throw new Error("目标已被修改，请查看最新状态");
+    a.targets = c.targets;
+    a.selectionVersion = (a.selectionVersion ?? 0) + 1;
+    if (a.status === "REQUESTED") a.status = "SUBMITTED";
+    const number = (id: string) => r.seats.find((s) => s.id === id)?.number;
+    return `说书人录入 ${number(a.seatId)} 号的目标：${c.targets.map((id) => `${number(id)} 号`).join("、")}`;
+  }
   if (c.type === "resolve_action") {
     a.status = c.resolution;
     a.resolutionReason = c.reason;

@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// These tests exercise the actual storage functions with synchronous hook
-// snapshots. Browser rendering and React subscription lifecycle are separate QA.
 vi.mock("react", () => ({
   useMemo: (calculate: () => unknown) => calculate(),
   useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) =>
@@ -66,8 +64,6 @@ describe("local drafts survive storage failures within the current tab", () => {
     clearDraft();
     expect(saved.get("draft")).toBe(JSON.stringify("old draft"));
     expect(useLocalState("draft", "")[0]).toBe("");
-    // A functional update after clear must start with the initial state,
-    // not either the stale persisted draft or the discarded new draft.
     setDraft((current) => current + "fresh");
     expect(useLocalState("draft", "")[0]).toBe("fresh");
   });
@@ -171,11 +167,17 @@ it("cleans old-round and legacy caches, preserves current drafts and credentials
   clearPlayerCache(first.code, first);
   const [, saveOld] = useLocalState(oldKey, "");
   saveOld("old-round draft");
-  useVerdicts(first).setVerdict("seat-b", "evil");
-  expect(useVerdicts(first).verdicts).toEqual({ "seat-b": "evil" });
+  const sent: unknown[] = [];
+  const sendStub = (async (c: unknown) => {
+    sent.push(c);
+    return true;
+  }) as never;
+  useVerdicts(first, sendStub).setVerdict("seat-b", "evil");
+  expect(sent).toEqual([{ type: "set_verdict", target: "seat-b", verdict: "evil" }]);
+  expect(useVerdicts({ ...first, self: { verdicts: { "seat-b": "evil" } } } as never, sendStub).verdicts).toEqual({ "seat-b": "evil" });
   const next = { ...first, gameNo: 2, playId: "deal-two" };
   clearPlayerCache(next.code, next);
-  expect(useVerdicts(next).verdicts).toEqual({});
+  expect(useVerdicts(next, sendStub).verdicts).toEqual({});
   expect(useLocalState(localKey(next, "notebook-draft"), "")[0]).toBe("");
   expect(tab.has(oldKey)).toBe(false);
   expect(persisted.has("clocktower.verdicts:ABCDEF:1:seat-a")).toBe(false);

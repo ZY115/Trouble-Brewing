@@ -1,4 +1,5 @@
 import type { NightAction, RoomView } from "../../shared/types";
+import Picker, { roleOptions, seatOptions } from "../ui/Picker";
 import {
   firstInformationTeam,
   randomFirstInformation,
@@ -34,48 +35,27 @@ export default function FirstInformation({
       <strong>两个号码 + 一个角色</strong>
       <div className="form-grid">
         {[0, 1].map((i) => (
-          <label key={i}>
-            号码 {i + 1}
-            <select
-              aria-label={`信息候选号码${i + 1}`}
-              value={value.targets[i]}
-              onChange={(e) =>
-                fill({
-                  ...value,
-                  targets: value.targets.map((id, j) =>
-                    j === i ? e.target.value : id,
-                  ),
-                })
-              }
-            >
-              <option value="">请选择</option>
-              {seats.map((s) => (
-                <option
-                  key={s.id}
-                  value={s.id}
-                  disabled={value.targets[1 - i] === s.id}
-                >
-                  {s.number}号
-                </option>
-              ))}
-            </select>
-          </label>
+          <Picker
+            key={i}
+            label={`号码 ${i + 1}`}
+            value={value.targets[i]}
+            options={seatOptions(seats, [value.targets[1 - i]])}
+            onChange={(v) =>
+              fill({
+                ...value,
+                targets: value.targets.map((id, j) => (j === i ? v : id)),
+              })
+            }
+            placeholder="请选择"
+          />
         ))}
-        <label>
-          角色
-          <select
-            aria-label="首夜信息角色"
-            value={value.roleId}
-            onChange={(e) => fill({ ...value, roleId: e.target.value })}
-          >
-            <option value="">请选择</option>
-            {ROLES.filter((r) => r.team === team).map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Picker
+          label="角色"
+          value={value.roleId}
+          options={roleOptions(ROLES.filter((r) => r.team === team))}
+          onChange={(v) => fill({ ...value, roleId: v })}
+          placeholder="请选择"
+        />
       </div>
       <button
         disabled={!randomFirstInformation(room, action, () => 0)}
@@ -92,7 +72,7 @@ export default function FirstInformation({
         </button>
       )}
       <small>
-        随机项按真实身份生成，排除信息接收者；醉酒中毒或特殊登记时请自行修改最终裁定。
+        随机结果按真实身份生成；中毒、醉酒或特殊登记时请自己改。
       </small>
     </section>
   );

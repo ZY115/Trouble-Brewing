@@ -1,7 +1,6 @@
 import type { RoomView } from "./types";
 import { completedAction } from "./assistance";
 
-/** Unrelated chat must not invalidate a phase review. */
 export function phaseReview(room: RoomView, publishLifeOnDawn: boolean) {
   const st = room.storyteller!;
   const night = room.phase !== "DAY";
@@ -35,7 +34,11 @@ export function phaseReview(room: RoomView, publishLifeOnDawn: boolean) {
       if (revivals.length)
         lines.push(`将公布 ${revivals.join("、")} 号恢复存活。`);
     } else lines.push("本次只宣布天亮，暂不公布生死变化。");
-  } else lines.push(`将进入第 ${room.day + 1} 夜，并清除白天倒计时。`);
+  } else {
+    lines.push(`将进入第 ${room.day + 1} 夜，并清除白天倒计时。`);
+    if (st.endReview?.suggestions.some((s) => s.status === "end_day"))
+      lines.push("三人存活、镇长健康且今天无人被处决：结束白天后善良获胜。");
+  }
   if (pending) lines.push(`还有 ${pending} 项已发起的待办未完成，请先处理。`);
   if (voting) lines.push("投票尚未结束，请先结束或取消投票。");
   lines.push(...st.notices.map((n) => n.text));

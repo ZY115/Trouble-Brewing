@@ -3,13 +3,10 @@ import type { Send } from "../useRoom";
 import { useUnread } from "../localState";
 import Conversation from "./Conversation";
 import GroupControls from "./GroupControls";
+import BluffBoard from "../player/BluffBoard";
+import Shield from "../player/Shield";
 import { chatContacts, clock, threadWith } from "./chat";
 
-/**
- * Chat opens on a list of conversations, newest first, the way WeChat does:
- * whoever wrote last is at the top with an unread count, no matter their seat.
- * Every number stays one tap away underneath for starting a new conversation.
- */
 export default function ChatPanel({
   room,
   send,
@@ -29,6 +26,11 @@ export default function ChatPanel({
     return (
       <div className="thread">
         <GroupControls room={room} send={send} selected={recipient} part="group" />
+        {recipient === "evil" && (
+          <Shield label="假身份">
+            <BluffBoard room={room} send={send} />
+          </Shield>
+        )}
         <Conversation key={recipient} room={room} send={send} recipient={recipient} bare />
       </div>
     );
@@ -82,7 +84,6 @@ export default function ChatPanel({
           ))}
         </div>
         <GroupControls room={room} send={send} selected="" part="create" />
-        <p className="inbox-note">私信只有双方能看到，说书人也看不到玩家之间的私聊。</p>
       </section>
     </>
   );

@@ -47,7 +47,6 @@ export function choiceSentence(
     : `${subject}${choiceLabels[kind]} ${numbers.join("、")}`;
 }
 
-/** Single-choice taps replace the old selection; two-choice slots remain distinct. */
 export function toggleChoice(targets: string[], id: string, count: number) {
   if (targets.includes(id)) return targets.filter((target) => target !== id);
   if (count === 1) return [id];

@@ -9,7 +9,6 @@ import type { Session } from "../shared/types";
 import { commandWithContext } from "../shared/command-context";
 import PlayerApp from "../src/player/PlayerApp";
 
-// Render the real UI; only its browser-only external store hook needs an SSR snapshot.
 vi.mock("react", async (load) => {
   const React = await load<typeof import("react")>();
   return {
@@ -32,7 +31,6 @@ function fixture() {
   const player = game.join(host.code, 5);
   const id = view(player).viewer.seatId!;
   const old = () => {
-    // Reproduce the save created by older versions: a pre-deal label for seat 5.
     const r = store.get(host.code)!;
     r.notebooks[id] = [
       {
@@ -88,7 +86,8 @@ describe("registration is separate from private game tools", () => {
         }),
       );
       expect(html).toContain("等待入座");
-      expect(html).toContain("保存号码");
+      expect(html).toContain('class="registration-numbers"');
+      expect(html).toContain('aria-pressed="false"');
       for (const forbidden of [
         "私聊",
         "笔记",

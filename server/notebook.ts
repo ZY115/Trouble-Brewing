@@ -72,8 +72,6 @@ export function notebookCommand(
     if (key in fields && fields[key as keyof typeof fields] !== undefined)
       Object.assign(revision, { [key]: fields[key as keyof typeof fields] });
   }
-  // A new role has a different information form. Keep the old form in history,
-  // but never attach it to the new role implicitly.
   if (
     command.type === "edit_notebook" &&
     command.patch.roleId !== undefined &&

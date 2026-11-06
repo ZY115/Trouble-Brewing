@@ -164,13 +164,8 @@ describe("explicit solo debug mode", () => {
     const vote = f.view().liveVote!;
     f.send({ type: "raise_hand", voteId: vote.id, raised: true }, a);
     expect(f.view().liveVote!.hands[aid]).toBe(true);
-    f.send({ type: "start_count", voteId: vote.id });
-    while (f.view().liveVote!.status === "COUNTING")
-      f.send({
-        type: "count_vote",
-        voteId: vote.id,
-        cursor: f.view().liveVote!.cursor,
-      });
+    f.send({ type: "lock_vote", voteId: vote.id });
+    f.send({ type: "finish_vote", voteId: vote.id, voters: [aid] });
     expect(
       f.view().publicRecords.find((r) => r.type === "vote")?.voters,
     ).toEqual([aid]);
@@ -183,7 +178,6 @@ describe("explicit solo debug mode", () => {
     expect(
       f.store.get(f.host.code)!.archives[0].notebooks[aid][0].revisions[0].body,
     ).toBe("only A's note");
-    // A reopened service retains synthetic-player access and marks.
     const reopened = new GameService(f.store, true);
     expect(reopened.debugPlayerSession(f.host.code, f.host.token, aid)).toEqual(
       a,

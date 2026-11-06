@@ -1,22 +1,16 @@
-import { useState } from "react";
-import type { RoomView } from "../../shared/types";
+import { useEffect, useState } from "react";
+import type { NoteRevision, RoomView } from "../../shared/types";
 import { ROLES, roleById, roleName, TEAM_NAMES, type Team } from "../../shared/roles";
 import { claimFields } from "../../shared/claims";
 import type { Send } from "../useRoom";
-import { useUnread } from "../localState";
+import { localKey, useLocalState, useUnread } from "../localState";
 import Picker, { roleOptions, seatOptions } from "../ui/Picker";
-import { seatNotes, type Verdict } from "./notes";
+import { claimSummary, seatNotes, type Verdict } from "./notes";
+import { currentNoteDate, dateLabel, noteBaseline, noteChangedElsewhere, noteSaveCommands, restoredNote, sameNoteDate, type NoteDate, type NoteDraft } from "./notebookEditing";
 
-type Patch = Extract<Parameters<Send>[0], { type: "edit_notebook" }>["patch"];
 const TEAMS: Team[] = ["townsfolk", "outsider", "minion", "demon"];
 const TONE: Record<Team, string> = { townsfolk: "town", outsider: "out", minion: "minion", demon: "demon" };
 
-/**
- * Notes live on the seat they are about. One sheet per player: my read,
- * the role they claim (or I suspect), what they said they learned, and a note.
- * Closing the sheet keeps what was written; every save is a revision, so
- * nothing is ever lost by accident.
- */
 export default function SeatSheet({
   room,
   send,
@@ -38,60 +32,100 @@ export default function SeatSheet({
   const me = room.viewer.seatId;
   const note = seatNotes(room)[seatId] ?? {};
   const unread = useUnread(room).contactCount(seatId);
-  const [roleId, setRoleId] = useState(note.claim?.rev.roleId ?? "");
-  const [choosing, setChoosing] = useState(!note.claim);
-  const [source, setSource] = useState<"claimed" | "suspected">(note.claim?.rev.source ?? "claimed");
-  const [info, setInfo] = useState<Record<string, string>>(note.claim?.rev.info ?? {});
-  const [body, setBody] = useState((note.claim ?? note.text)?.rev.body ?? "");
+  const [draft, setDraft, clearDraft] = useLocalState<NoteDraft | null>(localKey(room, `note-draft:${seatId}`), null);
+  const [restoredDraft] = useState(!!draft);
+  const [baseline, setBaseline] = useState(() => draft ? draft.baseline ?? null : noteBaseline(room, seatId));
+  const [roleId, setRoleId] = useState(draft?.roleId ?? note.claim?.rev.roleId ?? "");
+  const [choosing, setChoosing] = useState(!(draft ? draft.roleId : note.claim));
+  const [source, setSource] = useState<"claimed" | "suspected">(draft?.source ?? note.claim?.rev.source ?? "claimed");
+  const [info, setInfo] = useState<Record<string, string>>(draft?.info ?? note.claim?.rev.info ?? {});
+  const [body, setBody] = useState(draft?.body ?? (note.claim ?? note.text)?.rev.body ?? "");
+  const [dateOverride, setDateOverride] = useState<NoteDate | undefined>(draft?.date);
+  const [editDate, setEditDate] = useState<NoteDate | undefined>();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  const original = {
-    roleId: note.claim?.rev.roleId ?? "",
-    source: note.claim?.rev.source ?? "claimed",
-    info: JSON.stringify(note.claim?.rev.info ?? {}),
-    body: (note.claim ?? note.text)?.rev.body ?? "",
-  };
+  const [partialSave, setPartialSave] = useState(false);
+  const original = baseline?.fields ?? noteBaseline(room, seatId).fields;
+  const originalDate = baseline?.date ?? currentNoteDate(room);
   const cleanInfo = Object.fromEntries(Object.entries(info).filter(([, v]) => v));
-  const changed =
+  const contentChanged =
     roleId !== original.roleId ||
     (!!roleId && source !== original.source) ||
-    (!!roleId && JSON.stringify(cleanInfo) !== original.info) ||
+    (!!roleId && JSON.stringify(cleanInfo) !== JSON.stringify(original.info)) ||
     body.trim() !== original.body;
+  const date = dateOverride ?? (contentChanged ? editDate ?? currentNoteDate(room) : originalDate);
+  const changed = contentChanged || !sameNoteDate(date, originalDate);
+  const conflict = noteChangedElsewhere(baseline, room, seatId);
   const role = roleById(roleId);
-  const fields = roleId ? claimFields(roleId) : [];
+  const fields = roleId && seatId !== me ? claimFields(roleId) : [];
+
+  useEffect(() => {
+    if (contentChanged && !editDate) setEditDate(date);
+    else if (!contentChanged && editDate) setEditDate(undefined);
+    if (changed) setDraft({ roleId, source, info: cleanInfo, body, baseline, date });
+    else clearDraft();
+  }, [roleId, source, info, body, baseline, date.day, date.period, changed, contentChanged, editDate]);
 
   async function save() {
-    const text = body.trim();
-    const edit = (ref: NonNullable<typeof note.claim>, patch: Patch) =>
-      send({ type: "edit_notebook", entryId: ref.entry.id, expectedVersion: ref.entry.revisions.length, patch });
-    let ok = true;
-    if (roleId) {
-      ok = await (note.claim
-        ? edit(note.claim, { roleId, source, info: cleanInfo, body: text })
-        : send({ type: "add_note", target: seatId, roleId, source, info: cleanInfo, body: text }));
-      // The role note now carries the text, so the loose note retires.
-      if (ok && note.text) ok = await edit(note.text, { archived: true });
-    } else {
-      if (note.claim) ok = await edit(note.claim, { archived: true });
-      if (ok && text)
-        ok = await (note.text ? edit(note.text, { body: text }) : send({ type: "add_note", target: seatId, body: text }));
-      else if (ok && note.text) ok = await edit(note.text, { archived: true });
+    if (!baseline || conflict || partialSave) return false;
+    let saved = false;
+    for (const command of noteSaveCommands(baseline, seatId, { roleId, source, info: cleanInfo, body }, date)) {
+      if (!(await send(command))) {
+        setPartialSave(saved);
+        return false;
+      }
+      saved = true;
     }
-    return ok;
+    return true;
   }
 
   async function finish(then: () => void) {
-    if (!changed) return then();
+    if (busy) return;
+    if (!changed) {
+      clearDraft();
+      return then();
+    }
     setBusy(true);
     const ok = await save();
     setBusy(false);
     setFailed(!ok);
-    if (ok) then();
+    if (ok) {
+      clearDraft();
+      then();
+    }
   }
+  const keepDraft = () => {
+    setDraft({ roleId, source, info: cleanInfo, body, baseline, date });
+    onClose();
+  };
+  const revert = () => {
+    const latest = noteBaseline(room, seatId);
+    clearDraft();
+    setBaseline(latest);
+    setRoleId(latest.fields.roleId);
+    setSource(latest.fields.source);
+    setInfo(latest.fields.info);
+    setBody(latest.fields.body);
+    setDateOverride(undefined);
+    setEditDate(undefined);
+    setChoosing(!latest.fields.roleId);
+    setFailed(false);
+    setPartialSave(false);
+  };
+  const restore = (kind: string, rev: NoteRevision) => {
+    const restored = restoredNote(kind, rev);
+    setRoleId(restored.roleId);
+    setSource(restored.source);
+    setInfo(restored.info);
+    setChoosing(!restored.roleId);
+    setBody(restored.body);
+    setDateOverride({ day: rev.day, period: rev.period });
+  };
 
-  const history = [note.claim, note.text]
-    .filter(Boolean)
-    .flatMap((n) => n!.entry.revisions.slice(0, -1).map((rev) => ({ kind: n!.entry.kind, rev })))
+  const current = new Set([note.claim?.rev, note.text?.rev].filter(Boolean));
+  const history = room.notebook
+    .filter((e) => e.target === seatId)
+    .flatMap((e) => e.revisions.filter((rev) => !rev.archived && !current.has(rev)).map((rev) => ({ kind: e.kind, rev })))
     .sort((a, b) => (b.rev.sequence ?? 0) - (a.rev.sequence ?? 0));
 
   const pick = (id: string) => {
@@ -113,12 +147,62 @@ export default function SeatSheet({
               {seat.alive ? "存活" : seat.deadVoteAvailable ? "已死亡 · 还有死者票" : "已死亡 · 死者票已用"}
             </span>
           </div>
-          <button className="note-done" disabled={busy} onClick={() => void finish(onClose)}>
+          <button className="note-done" disabled={busy || partialSave || (conflict && changed)} onClick={() => void finish(onClose)}>
             {busy ? "保存中" : "完成"}
           </button>
         </header>
 
-        {failed && <p className="note-error">没保存上，网络恢复后再点一次「完成」。</p>}
+        {conflict || partialSave ? (
+          <div className="note-error" role="alert">
+            <span>{partialSave ? "已有部分修改保存，请加载最新版后继续。" : baseline ? "这份笔记已有新版本，请先核对；本次修改仍保留在这里。" : "这份旧草稿缺少版本信息，请先核对最新版。"}</span>
+            <button className="link-button" onClick={revert}>
+              放弃本次修改，加载最新版
+            </button>
+            <button className="link-button" onClick={keepDraft}>
+              保留草稿退出
+            </button>
+          </div>
+        ) : failed ? (
+          <div className="note-error" role="alert">
+            <span>没保存上。</span>
+            <button className="link-button" onClick={keepDraft}>
+              保留草稿退出
+            </button>
+            <button className="link-button" onClick={() => {
+              clearDraft();
+              onClose();
+            }}>
+              放弃修改
+            </button>
+          </div>
+        ) : (
+          changed && (
+            <div className="note-draft">
+              <span className="pl-small">{restoredDraft ? "上次的修改还没保存" : "有修改，点「完成」保存"}</span>
+              <button className="link-button" onClick={revert}>
+                放弃修改
+              </button>
+            </div>
+          )
+        )}
+
+        <div className="note-block">
+          <Picker
+            label="信息发生时间"
+            clearable={false}
+            value={`${date.day}:${date.period}`}
+            options={Array.from({ length: Math.max(1, room.day) }, (_, i) => i + 1).flatMap((day) =>
+              (["NIGHT", "DAY"] as const)
+                .filter((period) => day < room.day || period === "NIGHT" || room.phase === "DAY" || room.phase === "ENDED")
+                .map((period) => ({ value: `${day}:${period}`, label: dateLabel({ day, period }) })),
+            )}
+            onChange={(value) => {
+              const [day, period] = value.split(":");
+              if (period === "DAY" || period === "NIGHT") setDateOverride({ day: Number(day), period });
+            }}
+          />
+          <span className="pl-small">新信息默认记在当前时间；更正旧信息可选择原来的时间。</span>
+        </div>
 
         {seat.id !== me && (
           <div className="note-block">
@@ -190,7 +274,7 @@ export default function SeatSheet({
         {!!fields.length && !choosing && (
           <div className="note-block">
             <span className="note-label">
-              {seat.id === me ? "我说我得知" : source === "claimed" ? "他说他得知" : "我推测他得知"}
+              {source === "claimed" ? "他说他得知" : "我推测他得知"}
             </span>
             <div className="claim-fields">
               {fields.map((f) =>
@@ -255,8 +339,12 @@ export default function SeatSheet({
                   <span className="pl-small">
                     第 {rev.day} {rev.period === "DAY" ? "天" : "夜"}
                   </span>
+                  <button className="link-button note-restore" onClick={() => restore(kind, rev)}>
+                    恢复这个版本
+                  </button>
                   <span>
                     {kind === "claim" ? `${rev.source === "claimed" ? "自称" : "我猜"}${roleName(rev.roleId)}` : "备注"}
+                    {kind === "claim" && claimSummary(rev, room.seats) ? ` · ${claimSummary(rev, room.seats)}` : ""}
                     {rev.body ? ` · ${rev.body}` : ""}
                   </span>
                 </li>

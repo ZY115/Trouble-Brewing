@@ -14,7 +14,8 @@
     "package:local": "npm run build && node scripts/package-local.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "generate:setups": "node --import tsx scripts/generate-setups.ts"
+    "generate:setups": "node --import tsx scripts/generate-setups.ts",
+    "test:soak": "vitest run tests/ten-rounds.test.ts"
   },
   "dependencies": {
     "express": "^4.21.2",

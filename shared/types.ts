@@ -83,7 +83,6 @@ export interface RoomView {
   result?: GameResult;
   recap?: GameRecap;
   pastRecaps?: GameRecap[];
-  /** Issued when identities are dealt; isolates play drafts from registration. */
   playId?: string;
   code: string;
   title: string;
@@ -117,15 +116,19 @@ export interface RoomView {
   evilEnabled: boolean;
   evilMembers?: string[];
   actions: NightAction[];
-  /** Only the owning player, after identities have been dealt. */
   playerWorkspace?: PlayerWorkspace;
+  evilBluffs?: { roles: string[]; claims: Record<string, string>; shared: boolean };
   self?: {
     canChangeNumber: boolean;
     perceivedRoleId?: string;
     note: string;
+    verdicts?: Record<string, "good" | "evil">;
     bluffs?: string[];
   };
   storyteller?: {
+    undo?: { revision: number; label: string };
+    archiveGames?: number[];
+    presence?: Record<string, { connection: "foreground" | "background" | "offline"; synced: boolean; lastSeenAt?: number }>;
     canStartNextRound?: boolean;
     endReview?: EndReview;
     recapPreview?: GameRecap;
@@ -138,6 +141,9 @@ export interface RoomView {
     assignments: Record<string, Assignment>;
     events: AuditEvent[];
     evilReleased: boolean;
+    bluffsShared: boolean;
+    bluffClaims: Record<string, string>;
+    claims: Record<string, string>;
     phaseVersion: number;
     publishedAlive: Record<string, boolean>;
     nightPlan: NightPlanItem[];
@@ -175,9 +181,7 @@ export interface GroupInvitation {
   status: "pending" | "accepted" | "declined" | "cancelled";
 }
 export interface NoteRevision {
-  /** Monotonic save order within the owner's current game, even in one millisecond. */
   sequence?: number;
-  /** Soft removal keeps all earlier information and allows restoration. */
   archived?: boolean;
   seatNumbers: Record<string, number>;
   version: number;
@@ -208,6 +212,8 @@ export interface PublicRecord {
   seatNumbers?: Record<string, number>;
   nominee?: string;
   nominator?: string;
+  shooter?: string;
+  target?: string;
   supersedes?: string;
   createdAt: string;
 }
@@ -227,7 +233,8 @@ export interface LiveVote {
   order: string[];
   hands: Record<string, boolean>;
   counted: Record<string, boolean>;
-  cursor: number;
+  closesAt?: number;
+  closesInMs?: number;
   status: "OPEN" | "COUNTING" | "FINISHED" | "CANCELLED";
   deadAtVote: string[];
   eligibleAtVote?: string[];
@@ -247,6 +254,7 @@ export interface InformationReference {
   evidence: string[];
   warnings: string[];
   suggestedResponse?: string;
+  truth?: string;
   impaired: boolean;
 }
 export interface ExecutionRecord {
@@ -260,6 +268,7 @@ export interface ExecutionRecord {
   reason?: string;
   publicRecordId?: string;
   impaired?: boolean;
+  nominee?: string;
 }
 export interface DayTimerState {
   id: string;
@@ -297,7 +306,8 @@ export interface DeathEvent {
 }
 export interface RuleNotice {
   id: string;
-  kind: "demon" | "saint" | "victory" | "mayor";
+  kind: "demon" | "saint" | "victory" | "mayor" | "effect";
+  effects?: { seatId: string; condition: "poisoned" | "protected" }[];
   text: string;
   candidates: string[];
   deathId?: string;

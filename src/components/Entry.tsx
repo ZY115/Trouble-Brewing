@@ -2,6 +2,19 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../useRoom";
 import { isHostEntry, joinCode, loadSession, hostSessions } from "../session";
 import type { RoomView, Session } from "../../shared/types";
+type Latest = { code: string; capacity: number; phase: RoomView["phase"]; day: number; activeAt: number };
+const stage = (l: Latest) =>
+  l.phase === "LOBBY" || l.phase === "SETUP"
+    ? "还没开局"
+    : l.phase === "FIRST_NIGHT"
+      ? "首夜"
+      : l.phase === "DAY"
+        ? `第 ${l.day} 天`
+        : `第 ${l.day} 夜`;
+const ago = (at: number) => {
+  const minutes = Math.round((Date.now() - at) / 60000);
+  return !at ? "" : minutes < 1 ? "刚刚" : minutes < 60 ? `${minutes} 分钟前` : minutes < 1440 ? `${Math.round(minutes / 60)} 小时前` : `${Math.round(minutes / 1440)} 天前`;
+};
 type Discovery = Pick<
   RoomView,
   "code" | "title" | "capacity" | "phase" | "registration" | "gameNo"
@@ -17,25 +30,21 @@ export default function Entry({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const previous = loadSession();
-  const savedHosts = hostSessions();
   const recovery = new URLSearchParams(location.hash.slice(1)).get("recover");
   const linkGame = Number(new URLSearchParams(location.search).get("g")) || undefined;
   const staleLink = !!room && !!linkGame && room.gameNo !== linkGame;
-  const [backup, setBackup] = useState("");
-  async function restoreBackup() {
+  const [latest, setLatest] = useState<Latest | null | undefined>(undefined);
+  useEffect(() => {
+    if (!isHostEntry) return;
+    api<Latest | null>("/api/host/latest", { sessions: hostSessions(), resume: false })
+      .then(setLatest)
+      .catch(() => setLatest(null));
+  }, []);
+  async function resume() {
     setBusy(true);
     setError("");
     try {
-      const s = JSON.parse(backup) as Session;
-      if (!/^[A-Z2-9]{6}$/.test(s.code) || typeof s.token !== "string")
-        throw Error("备份格式不正确");
-      const res = await fetch(`/api/rooms/${s.code}/state`, {
-        headers: { Authorization: `Bearer ${s.token}` },
-      });
-      const v = await res.json();
-      if (!res.ok || v.viewer?.kind !== "storyteller")
-        throw Error("不是有效的说书人管理凭据");
-      onSession(s);
+      onSession(await api<Session>("/api/host/latest", { sessions: hostSessions(), resume: true }));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -102,23 +111,21 @@ export default function Entry({
         <h1>{isHostEntry ? "暗流涌动 · 说书人" : "暗流涌动 · 玩家登记"}</h1>
         {isHostEntry ? (
           <>
-            {!!savedHosts.length && (
-              <section>
-                <h2>继续已有房间</h2>
-                {savedHosts.map((s) => (
-                  <button
-                    className="primary wide"
-                    key={s.code}
-                    onClick={() => onSession(s)}
-                  >
-                    返回房间 {s.code}
-                  </button>
-                ))}
-              </section>
-            )}
-            <details open={!savedHosts.length}>
+            <section className="resume">
+              <h2>继续上一局</h2>
+              {latest === undefined ? (
+                <p className="muted">正在查找…</p>
+              ) : latest ? (
+                <button className="primary wide" disabled={busy} onClick={() => void resume()}>
+                  继续：房间 {latest.code} · {latest.capacity} 人 · {stage(latest)}
+                  {ago(latest.activeAt) && <small> · {ago(latest.activeAt)}</small>}
+                </button>
+              ) : (
+                <p className="muted">没有未完成的对局</p>
+              )}
+            </section>
+            <details open={latest === null}>
               <summary>创建新房间</summary>
-              <p>创建新房间不会覆盖已有房间的管理凭据。</p>
               <form onSubmit={submit}>
                 <label className="field">玩家人数（不含说书人）</label>
                 <div className="count-picker">
@@ -139,30 +146,7 @@ export default function Entry({
                 </button>
               </form>
             </details>
-            <details>
-              <summary>从管理备份恢复</summary>
-              <input
-                type="file"
-                accept=".json"
-                aria-label="导入管理凭据备份"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void file.text().then(setBackup);
-                }}
-              />
-              <textarea
-                aria-label="管理凭据备份内容"
-                value={backup}
-                onChange={(e) => setBackup(e.target.value)}
-              />
-              <button
-                disabled={busy || !backup}
-                onClick={() => void restoreBackup()}
-              >
-                验证并恢复管理入口
-              </button>
-            </details>
-            <small>开放入场后分享二维码。满员且号码不重复时自动发身份。</small>
+            <small>人齐且号码不重复后自动发身份。</small>
           </>
         ) : joinCode ? (
           <>
@@ -189,43 +173,47 @@ export default function Entry({
               <form onSubmit={submit}>
                 {staleLink && (
                   <p role="alert" className="error">
-                    这是上一局的二维码，请扫描说书人屏幕上的新二维码。
+                    已经开了新的一局，请重新扫说书人屏幕上的二维码。
                   </p>
                 )}
-                <label className="field">
-                  你的座位号
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={room?.capacity ?? 13}
-                    step={1}
-                    required
-                    value={number}
-                    onChange={(e) => setNumber(e.target.value)}
-                    placeholder={room ? `1–${room.capacity}` : "输入座位号"}
-                  />
-                </label>
+                <span className="field">你坐在几号？</span>
+                <div className="join-numbers" role="group" aria-label="你的座位号">
+                  {Array.from({ length: room?.capacity ?? 12 }, (_, i) => i + 1).map((n) => {
+                    const taken = !!room && !room.registration.missingNumbers.includes(n);
+                    return (
+                      <button
+                        type="button"
+                        key={n}
+                        className={taken ? "taken" : ""}
+                        aria-pressed={number === String(n)}
+                        onClick={() => setNumber(String(n))}
+                      >
+                        {n}
+                        {taken && <small>已有人</small>}
+                      </button>
+                    );
+                  })}
+                </div>
                 <button
                   className="primary wide"
                   disabled={busy || staleLink || !room?.registration.open || !number}
                 >
-                  提交号码
+                  {number ? `我是 ${number} 号` : "先点你的座位号"}
                 </button>
               </form>
             )}
             {room && (
               <p>
                 {!["LOBBY", "SETUP"].includes(room.phase)
-                  ? "本局已开始。换设备或清除数据后，请说书人为你的原座位签发恢复二维码。"
+                  ? "本局已经开始。换了手机或清过数据，请找说书人要恢复二维码。"
                   : !room.registration.open
-                    ? "说书人正在准备配板，请等待开放入场。"
-                    : `已登记 ${room.registration.joined} / ${room.capacity} 人。请填写自己的实际座位号。`}
+                    ? "说书人正在配板，稍后开放入场。"
+                    : `已登记 ${room.registration.joined} / ${room.capacity} 人。`}
               </p>
             )}
           </>
         ) : (
-          <p>请扫描说书人提供的房间二维码。此页面不提供角色选择。</p>
+          <p>请扫说书人屏幕上的二维码入场。</p>
         )}
         {error && (
           <div className="error inline" role="alert">

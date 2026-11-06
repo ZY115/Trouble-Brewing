@@ -1,7 +1,6 @@
 import type { Command } from "./commands";
 import type { RoomView } from "./types";
 
-/** Capture the state the sender actually saw, before any async send/retry. */
 export function commandWithContext(command: Command, room: RoomView): Command {
   if (command.type === "next_phase" || command.type === "request_action")
     return {

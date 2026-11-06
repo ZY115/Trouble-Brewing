@@ -1,10 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
 
-/**
- * Press and hold to read private content; it hides the moment the finger
- * lifts, the page loses focus or the tab is hidden. Every player has the same
- * buttons in the same place, so holding one reveals nothing to a neighbour.
- */
 export default function HoldReveal({
   label,
   children,

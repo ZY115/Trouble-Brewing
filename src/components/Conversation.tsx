@@ -1,10 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ConnectionContext } from "./connection";
 import type { RoomView } from "../../shared/types";
 import type { Send } from "../useRoom";
 import { localKey, useLocalState, useUnread } from "../localState";
 import { clock, threadWith } from "./chat";
 
-/** The workbench and full chat use the same conversation and draft keys. */
 export default function Conversation({
   room,
   send,
@@ -16,9 +16,10 @@ export default function Conversation({
   send: Send;
   recipient: string;
   compact?: boolean;
-  /** The surrounding sheet already names the contact. */
   bare?: boolean;
 }) {
+  const connected = useContext(ConnectionContext);
+  const [failed, setFailed] = useState<{ content: string; at: number } | null>(null);
   const me = room.viewer.seatId ?? "storyteller";
   const name = (id: string) =>
     id === "storyteller"
@@ -26,6 +27,16 @@ export default function Conversation({
       : `${room.seats.find((s) => s.id === id)?.number ?? "?"} 号`;
   const channel = recipient === "evil" || recipient.startsWith("group:");
   const messages = threadWith(room, recipient);
+  useEffect(() => {
+    if (!failed) return;
+    const arrived = messages.some(
+      (m) => m.from === me && m.content === failed.content && Date.parse(m.createdAt) >= failed.at - 5000,
+    );
+    if (arrived) {
+      setFailed(null);
+      if (content === failed.content) clearContent();
+    }
+  }, [messages.length, failed]);
   const title =
     recipient === "evil"
       ? "邪恶队友频道"
@@ -45,7 +56,6 @@ export default function Conversation({
       container.current.scrollTop = container.current.scrollHeight;
   }, [messageKey]);
   useEffect(() => {
-    // Only messages actually visible in an open, visible pane become read.
     const observer = new IntersectionObserver((entries) => {
       if (document.visibilityState !== "visible") return;
       const ids = entries
@@ -109,14 +119,21 @@ export default function Conversation({
           <p className="muted messages-empty">还没有消息</p>
         )}
       </div>
+      {(!connected || failed) && (
+        <p className="composer-status" role="status">
+          {!connected ? "正在连接，连上后才能发送，草稿会保留" : "还没确认发出。上面没出现这条的话，再点发送"}
+        </p>
+      )}
       <form
         className="composer"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (busy || !recipient || !content.trim()) return;
+          if (busy || !recipient || !content.trim() || !connected) return;
           setBusy(true);
-          if (await send({ type: "send_message", to: recipient, content }))
-            clearContent();
+          const at = Date.now();
+          const ok = await send({ type: "send_message", to: recipient, content });
+          setFailed(ok ? null : { content, at });
+          if (ok) clearContent();
           setBusy(false);
         }}
       >
@@ -131,7 +148,7 @@ export default function Conversation({
         <button
           className="primary"
           disabled={
-            busy || !recipient || !content.trim() || room.phase === "ENDED"
+            busy || !recipient || !content.trim() || room.phase === "ENDED" || !connected
           }
           aria-label={compact ? `发送给${title}的私聊` : "发送私信"}
         >

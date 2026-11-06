@@ -5,12 +5,8 @@ import type {
   RuleNotice,
 } from "../../shared/types";
 import { completedAction } from "../../shared/assistance";
+import { latestVoteRecord } from "../../shared/vote-display";
 
-/**
- * Everything the storyteller has to do is one queue. Rule reminders, expired
- * markers, night steps, announcements and votes all become tasks, so the
- * screen always has exactly one current thing with one primary button.
- */
 export type Task =
   | { id: string; kind: "end" }
   | { id: string; kind: "notice"; notice: RuleNotice }
@@ -21,7 +17,7 @@ export type Task =
   | { id: string; kind: "dawn" }
   | { id: string; kind: "publish" }
   | { id: string; kind: "vote" }
-  | { id: string; kind: "verdict" }
+  | { id: string; kind: "verdict"; recordId: string }
   | { id: string; kind: "nominate" };
 
 export const isNightPhase = (room: RoomView) =>
@@ -42,7 +38,6 @@ export function taskDone(room: RoomView, t: Task) {
   return false;
 }
 
-/** A started step whose player has not chosen yet: the storyteller cannot act on it. */
 export function taskWaiting(t: Task) {
   const a = t.kind === "plan" ? t.action : t.kind === "action" ? t.action : undefined;
   return !!a && a.status === "REQUESTED";
@@ -55,8 +50,9 @@ export function nightTasks(room: RoomView): Task[] {
     ...st.notices.map((notice) => ({ id: `notice:${notice.id}`, kind: "notice" as const, notice })),
   ];
   if (st.staleConditions.length) tasks.push({ id: "stale", kind: "stale" });
-  const items = st.nightPlan.filter((i) => i.night === room.day);
-  if (!items.length) tasks.push({ id: "generate", kind: "generate" });
+  const all = st.nightPlan.filter((i) => i.night === room.day);
+  if (!all.length) tasks.push({ id: "generate", kind: "generate" });
+  const items = all.filter((i) => !i.retiredReason);
   items.forEach((item, step) =>
     tasks.push({
       id: `plan:${item.id}`,
@@ -67,10 +63,15 @@ export function nightTasks(room: RoomView): Task[] {
     }),
   );
   room.actions
-    .filter((a) => a.night === room.day && !items.some((i) => i.actionId === a.id))
+    .filter((a) => a.night === room.day && !all.some((i) => i.actionId === a.id))
     .forEach((action) => tasks.push({ id: `action:${action.id}`, kind: "action", action }));
   tasks.push({ id: "dawn", kind: "dawn" });
   return tasks;
+}
+
+export function executedToday(room: RoomView) {
+  const all = room.storyteller!.executions;
+  return all.find((e) => e.day === room.day && !e.voided && !all.some((n) => n.supersedes === e.id));
 }
 
 export function dayTasks(room: RoomView): Task[] {
@@ -83,23 +84,19 @@ export function dayTasks(room: RoomView): Task[] {
   if (room.seats.some((s) => s.alive !== st.publishedAlive[s.id]))
     tasks.push({ id: "publish", kind: "publish" });
   const vote = room.liveVote;
+  const latest = latestVoteRecord(room.publicRecords);
   if (vote && ["OPEN", "COUNTING"].includes(vote.status)) tasks.push({ id: `vote:${vote.id}`, kind: "vote" });
-  else if (vote && vote.status === "FINISHED" && vote.day === room.day)
-    tasks.push({ id: `verdict:${vote.id}`, kind: "verdict" });
+  else if (latest && latest.day === room.day && latest.period === "DAY" && !executedToday(room))
+    tasks.push({ id: `verdict:${latest.id}`, kind: "verdict", recordId: latest.id });
   tasks.push({ id: "nominate", kind: "nominate" });
   return tasks;
 }
 
-/**
- * Once an ending condition is met it comes first, so it cannot be missed.
- * Its id names the conditions: a new one surfaces again after "继续游戏".
- */
 function endTask(room: RoomView): Task[] {
   const met = (room.storyteller!.endReview?.suggestions ?? []).filter((s) => s.status === "met");
   return met.length ? [{ id: `end:${met.map((s) => s.id).join(",")}`, kind: "end" }] : [];
 }
 
-/** First task that still needs the storyteller, skipping ones dismissed this session. */
 export function currentTask(room: RoomView, tasks: Task[], dismissed: string[]) {
   return (
     tasks.find((t) => !taskDone(room, t) && !dismissed.includes(t.id)) ??

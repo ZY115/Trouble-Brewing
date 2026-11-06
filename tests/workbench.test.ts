@@ -52,6 +52,7 @@ function setup() {
         perceivedRoleId: roles[i],
       }),
   );
+  r.redHerring ??= ids[0];
   store.save(r);
   const current = () => store.get(host.code)!;
   const change = (
@@ -372,12 +373,9 @@ describe("public voting separates abstention from spent dead votes", () => {
     f.act({ type: "open_vote", nominator: f.ids[0], nominee: f.ids[1] });
     const id = f.view().liveVote!.id;
     f.act({ type: "raise_hand", voteId: id, raised: true }, f.players[2]);
-    expect(ballotStatus(f.view().liveVote, [], f.ids[0])).toBe(
-      "未举手 · 待计票",
-    );
-    f.act({ type: "start_count", voteId: id });
-    for (let cursor = 0; cursor < 10; cursor++)
-      f.act({ type: "count_vote", voteId: id, cursor });
+    expect(ballotStatus(f.view().liveVote, [], f.ids[0])).toBe("未举手");
+    f.act({ type: "lock_vote", voteId: id });
+    f.act({ type: "finish_vote", voteId: id, voters: [f.ids[2]] });
     const old = f.view().publicRecords.at(-1)!;
     expect(
       ballotStatus(f.view().liveVote, f.view().publicRecords, f.ids[2]),

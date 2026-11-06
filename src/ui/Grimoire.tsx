@@ -28,6 +28,7 @@ export interface GrimoireSeat {
   tone: SeatTone;
   dead?: boolean;
   selected?: boolean;
+  disabled?: boolean;
   rings?: SeatRing[];
   marks?: { text: string; kind: MarkKind }[];
   badge?: string;
@@ -47,7 +48,6 @@ export const roleGlyph = (roleId?: string) =>
 export const roleTone = (roleId?: string): SeatTone =>
   TEAM_TONE[roleById(roleId ?? "")?.team ?? ""] ?? "neutral";
 
-/** Seat n of `capacity`, clockwise from the top, in percent of the circle. */
 export function seatPosition(index: number, capacity: number) {
   const angle = ((-90 + (index * 360) / capacity) * Math.PI) / 180;
   return { x: 50 + 40 * Math.cos(angle), y: 50 + 40 * Math.sin(angle) };
@@ -102,6 +102,7 @@ export default function Grimoire({
           p.y < 45 ? "upper" : "",
           s.dead ? "dead" : "",
           s.selected ? "selected" : "",
+          s.disabled ? "off" : "",
           ...(s.rings ?? []).map((r) => `ring-${r}`),
         ].join(" ");
         return (
@@ -115,7 +116,7 @@ export default function Grimoire({
               className="g-token"
               aria-label={s.ariaLabel}
               aria-pressed={s.selected || undefined}
-              disabled={!onSeat}
+              disabled={!onSeat || s.disabled}
               onClick={() => onSeat?.(s)}
             >
               {s.glyph}

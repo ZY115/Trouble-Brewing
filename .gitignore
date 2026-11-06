@@ -17,6 +17,7 @@ coverage/
 .env.*
 !.env.example
 clocktower-host-*.json
+clocktower-room-*.json
 
 # Local references, reports and machine files
 /upstream/
@@ -26,3 +27,4 @@ clocktower-host-*.json
 Thumbs.db
 .idea/
 .vscode/
+.claude/

@@ -7,6 +7,7 @@ import { localKey, useLocalState, useUnread } from "../localState";
 import Registration from "../components/Registration";
 import { RecapFacts, RecapTimeline, ResultBanner, TruthCircle } from "../components/Recap";
 import HoldReveal from "./HoldReveal";
+import Shield, { ShieldContext, useAutoHide, useShieldPreference } from "./Shield";
 import NightCard, { tonightActions } from "./NightCard";
 import { NoteCircle, NotesTable } from "./NoteCircle";
 import SeatSheet from "./SeatSheet";
@@ -65,6 +66,7 @@ function Identity({ room }: { room: RoomView }) {
   const role = roleById(room.self?.perceivedRoleId ?? "");
   if (!role) return <span className="pl-small">身份尚未发放。</span>;
   const num = (id: string) => room.seats.find((s) => s.id === id)?.number;
+  const mine = room.evilBluffs?.claims[room.viewer.seatId ?? ""];
   return (
     <>
       <span className="pl-small">{TEAM_NAMES[role.team]}</span>
@@ -76,6 +78,7 @@ function Identity({ room }: { room: RoomView }) {
       {room.self?.bluffs && (
         <span className="pl-small">不在场的善良角色：{room.self.bluffs.map(roleName).join("、")}</span>
       )}
+      {mine && <span className="pl-small">我要扮演：{roleName(mine)}</span>}
     </>
   );
 }
@@ -98,17 +101,20 @@ export default function PlayerApp({
   const [sheet, setSheet] = useState<SheetId>("");
   const [tab, setTab] = useLocalState<RecordTab>(localKey(room, "records-tab"), "notes");
   const [noteSeat, setNoteSeat] = useState("");
-  // The chat sheet always opens on the conversation list, so new messages are seen first.
   const [chatWith, setChatWith] = useState("");
-  const { verdicts, setVerdict } = useVerdicts(room);
+  const { verdicts, setVerdict } = useVerdicts(room, send);
   const view = visibleRoom(room);
   const unread = useUnread(view);
   const me = room.seats.find((s) => s.id === room.viewer.seatId);
   const night = isNight(room);
   const lobby = room.phase === "LOBBY" || room.phase === "SETUP";
   const privateOpen = sheet === "records" && tab === "info";
+  const [shielded, setShielded] = useShieldPreference();
+  const [revealed, setRevealed] = useState(false);
+  useAutoHide(revealed, () => setRevealed(false));
+  useEffect(() => setRevealed(false), [room.phase, room.day, shielded]);
+  const nightHidden = shielded && !revealed;
 
-  // The private information list closes itself as soon as the phone is put down.
   useEffect(() => {
     if (!privateOpen) return;
     const hide = () => setSheet("");
@@ -127,12 +133,11 @@ export default function PlayerApp({
     setNoteSeat("");
   }, [lobby, room.code, room.gameNo, room.viewer.seatId]);
 
-  // Night targets are chosen on the circle; "noting" lends it back to notes.
   const { open } = tonightActions(room);
   const [draft, setDraft, clearDraft] = useLocalState(localKey(room, `night-pick:${room.day}`), NO_PICK);
   const [noting, setNoting] = useState(false);
   useEffect(() => setNoting(false), [open?.id]);
-  const picking = night && !!open && !noting;
+  const picking = night && !!open && !noting && !nightHidden;
   const picked = open && draft.id === open.id ? draft.targets : open?.status === "SUBMITTED" ? open.targets : [];
   const tapSeat = (seatId: string) => {
     if (picking && open) setDraft({ id: open.id, targets: toggleChoice(picked, seatId, open.targetCount) });
@@ -149,15 +154,22 @@ export default function PlayerApp({
           ? "首夜"
           : `第 ${room.day} 夜`
         : `第 ${room.day} 天`;
-  // Counts stay hidden at night: a badge appearing on one phone is a tell.
-  const chatCount = night ? 0 : unread.messages.length;
+  const chatCount = unread.messages.length;
+  const invites = room.invitations.filter((i) => i.to === room.viewer.seatId && i.status === "pending").length;
+  const chatNote = invites ? `${invites} 个群聊邀请` : chatCount ? `${chatCount} 条新消息` : "";
   return (
+    <ShieldContext.Provider value={shielded}>
     <div className="pl-shell">
       <header className="pl-top">
         <span className="pl-phase">{phase}</span>
         {me && <span>{me.number} 号</span>}
         <span className="spacer" />
-        {!connected && <span>重新连接中</span>}
+        {!connected && <span>同步中…</span>}
+        {!lobby && (
+          <button className="pl-shield" aria-pressed={shielded} onClick={() => setShielded(!shielded)}>
+            {shielded ? "显示私密" : "隐藏私密"}
+          </button>
+        )}
         <button className="icon-button ghost" aria-label="菜单" onClick={() => setSheet("menu")}>
           <svg
             width="18"
@@ -192,18 +204,37 @@ export default function PlayerApp({
             {room.phase === "ENDED" && room.recap ? (
               <TruthCircle room={room} recap={room.recap} />
             ) : (
-              <NoteCircle room={room} verdicts={verdicts} picked={picked} picking={picking} onSeat={tapSeat} />
-            )}
-            {night && (
-              <NightCard
+              <NoteCircle
                 room={room}
-                send={send}
+                verdicts={verdicts}
                 picked={picked}
-                selecting={picking}
-                onToggleMode={() => setNoting(!noting)}
-                onSubmitted={clearDraft}
+                picking={picking}
+                noSelf={["protect", "master"].includes(open?.choiceKind ?? "")}
+                onSeat={tapSeat}
               />
             )}
+            {night &&
+              (nightHidden ? (
+                <button className="pl-card shield-cover" onClick={() => setRevealed(true)}>
+                  今晚的信息已隐藏 · 点一下显示
+                </button>
+              ) : (
+                <>
+                  <NightCard
+                    room={room}
+                    send={send}
+                    picked={picked}
+                    selecting={picking}
+                    onToggleMode={() => setNoting(!noting)}
+                    onSubmitted={clearDraft}
+                  />
+                  {shielded && (
+                    <button className="link-button shield-close" onClick={() => setRevealed(false)}>
+                      收起今晚的信息
+                    </button>
+                  )}
+                </>
+              ))}
             {room.phase === "DAY" && voting && <PlayerVote key={room.liveVote!.id} room={room} send={send} />}
             {room.phase === "DAY" && <TodayList room={room} />}
             {room.phase === "ENDED" && (
@@ -233,15 +264,15 @@ export default function PlayerApp({
             <MyInfo room={room} />
           </HoldReveal>
           <button
-            className={chatCount ? "has-unread" : ""}
+            className={chatNote ? "has-unread" : ""}
             onClick={() => {
               setChatWith("");
               setSheet("chat");
             }}
           >
             私聊
-            {chatCount ? (
-              <small className="dock-unread">{chatCount} 条新消息</small>
+            {chatNote ? (
+              <small className="dock-unread">{chatNote}</small>
             ) : (
               <small aria-hidden="true">&nbsp;</small>
             )}
@@ -295,7 +326,11 @@ export default function PlayerApp({
           </div>
           {tab === "notes" && <NotesTable room={room} verdicts={verdicts} onOpen={setNoteSeat} />}
           {tab === "public" && <PlayerRecords room={room} />}
-          {tab === "info" && <InformationHistory room={room} />}
+          {tab === "info" && (
+            <Shield label="我的信息">
+              <InformationHistory room={room} />
+            </Shield>
+          )}
         </Sheet>
       )}
       {sheet === "menu" && (
@@ -309,5 +344,6 @@ export default function PlayerApp({
         </Sheet>
       )}
     </div>
+    </ShieldContext.Provider>
   );
 }

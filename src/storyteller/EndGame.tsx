@@ -5,7 +5,6 @@ import { Checks, TaskActions, TaskCard } from "./TaskCard";
 
 const WINNER = { good: "善良", evil: "邪恶" } as const;
 
-/** Shown at the front of the queue as soon as an ending condition is met. */
 export function EndTask({ room, onEnd, onDismiss }: { room: RoomView; onEnd: () => void; onDismiss: () => void }) {
   const review = room.storyteller!.endReview!;
   const winner = review.suggestedWinner;
@@ -22,11 +21,6 @@ export function EndTask({ room, onEnd, onDismiss }: { room: RoomView; onEnd: () 
   );
 }
 
-/**
- * One confirmation for both ways a game stops: a normal finish names the
- * winner and publishes the recap; an early stop names nobody and keeps the
- * grimoire private.
- */
 export function EndGameDialog({ room, send, onClose }: { room: RoomView; send: Send; onClose: () => void }) {
   const review = room.storyteller!.endReview!;
   const dialog = useRef<HTMLDialogElement>(null);
@@ -130,7 +124,6 @@ export function EndGameDialog({ room, send, onClose }: { room: RoomView; send: S
             {needsReason ? "裁定说明（与系统建议不同，必填）" : "裁定说明（可选）"}
             <textarea value={reason} maxLength={1000} rows={2} onChange={(e) => setReason(e.target.value)} />
           </label>
-          <p className="task-note">结算后，所有玩家会看到身份真相和本局复盘。</p>
         </>
       ) : (
         <>
@@ -138,7 +131,6 @@ export function EndGameDialog({ room, send, onClose }: { room: RoomView; send: S
             原因（可选）
             <textarea value={reason} maxLength={1000} rows={2} onChange={(e) => setReason(e.target.value)} />
           </label>
-          <p className="task-note">提前结束不判胜负，玩家看不到复盘。</p>
         </>
       )}
 
@@ -146,7 +138,7 @@ export function EndGameDialog({ room, send, onClose }: { room: RoomView; send: S
       {review.activeVote && <p className="task-note">正在进行的投票会被取消。</p>}
       {stale && (
         <p className="end-stale" role="alert">
-          局面刚刚有变化，请重新看一遍上面的内容。
+          情况有变化，请再核对一遍。
           <button className="link-button" onClick={() => setSeen(review.key)}>
             已核对
           </button>

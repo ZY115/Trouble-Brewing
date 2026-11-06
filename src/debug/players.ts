@@ -7,10 +7,6 @@ export function debugPlayers(room: RoomView) {
 
 export function nextWaitingPlayer(room: RoomView, selected: string) {
   const players = debugPlayers(room);
-  if (room.phase === "DAY" && room.liveVote?.status === "COUNTING") {
-    const voter = room.liveVote.order[room.liveVote.cursor];
-    if (players.some(seat => seat.id === voter)) return voter;
-  }
   const waiting = new Set(room.actions.filter(action =>
     ["FIRST_NIGHT", "OTHER_NIGHT"].includes(room.phase) && action.night === room.day && action.status === "REQUESTED"
   ).map(action => action.seatId));

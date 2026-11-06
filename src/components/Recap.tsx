@@ -23,7 +23,6 @@ export function ResultBanner({ result }: { result?: GameResult }) {
   );
 }
 
-/** The circle after the game: every seat shows who they really were. */
 export function TruthCircle({ room, recap }: { room: RoomView; recap: GameRecap }) {
   const me = room.viewer.seatId;
   const seats: GrimoireSeat[] = recap.seats.map((s) => ({
@@ -54,7 +53,6 @@ export function TruthCircle({ room, recap }: { room: RoomView; recap: GameRecap 
   );
 }
 
-/** Only the identities that are not what they seemed: they are what a recap needs. */
 export function RecapFacts({ recap }: { recap: GameRecap }) {
   const facts = recap.seats.flatMap((s) => {
     const out: string[] = [];
@@ -109,10 +107,6 @@ function EntryEditor({
   );
 }
 
-/**
- * What happened, night by night. The storyteller's copy can be rewritten,
- * trimmed (hidden from players) or extended before and after the game ends.
- */
 export function RecapTimeline({
   recap,
   room,
@@ -137,7 +131,7 @@ export function RecapTimeline({
     .map((p) => ({ ...p, entries: recap.entries.filter((e) => e.day === p.day && e.period === p.period) }))
     .filter((g) => editable || g.entries.length);
 
-  async function save(entry: Pick<RecapEntry, "day" | "period" | "text"> & { id?: string; hidden?: boolean }) {
+  async function save(entry: Pick<RecapEntry, "day" | "period" | "text"> & { id?: string }) {
     if (!send) return;
     setBusy(true);
     const ok = await send({
@@ -147,7 +141,6 @@ export function RecapTimeline({
       day: entry.day,
       period: entry.period,
       text: entry.text,
-      hidden: !!entry.hidden,
     });
     setBusy(false);
     if (ok) setEditing("");
@@ -163,7 +156,7 @@ export function RecapTimeline({
             <span className="recap-period-name">{periodName(g.day, g.period)}</span>
             <ul>
               {g.entries.map((e) => (
-                <li key={e.id} className={`recap-entry ${e.kind}${e.hidden ? " hidden" : ""}`}>
+                <li key={e.id} className={`recap-entry ${e.kind}`}>
                   {editing === e.id ? (
                     <EntryEditor
                       initial={e.text}
@@ -176,16 +169,8 @@ export function RecapTimeline({
                       <p>{e.text}</p>
                       {editable && (
                         <span className="recap-tools">
-                          {e.hidden && <span className="recap-hidden-tag">玩家看不到</span>}
                           <button className="link-button" disabled={busy} onClick={() => setEditing(e.id)}>
                             改写
-                          </button>
-                          <button
-                            className="link-button"
-                            disabled={busy}
-                            onClick={() => void save({ ...e, hidden: !e.hidden })}
-                          >
-                            {e.hidden ? "给玩家看" : "不给玩家看"}
                           </button>
                         </span>
                       )}

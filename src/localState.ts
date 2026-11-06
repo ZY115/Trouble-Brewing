@@ -2,8 +2,6 @@ import { useMemo, useSyncExternalStore } from "react";
 import type { RoomView } from "../shared/types";
 
 const fallback = new Map<string, string | null>();
-// Same-tab iframes share sessionStorage. Keep debug-player drafts in their
-// own JS realm so switching a simulated device cannot purge another's drafts.
 const debugFrame = typeof location !== "undefined" &&
   new URLSearchParams(location.search).get("debugEmbed") === "1" &&
   !!new URLSearchParams(location.search).get("debugSeat");
@@ -46,7 +44,6 @@ function obsolete(key: string) {
   );
 }
 
-/** Purge old player drafts/marks, including legacy storage, but never credentials. */
 export function clearPlayerCache(code: string, current?: RoomView) {
   activePlayerScopes.set(code, current ? localScope(current) : null);
   const stale = (key: string) =>
@@ -65,17 +62,14 @@ export function clearPlayerCache(code: string, current?: RoomView) {
           try {
             storage.removeItem(key);
           } catch {
-            /* Obsolete scopes stay unreadable. */
           }
         }
     } catch {
-      /* Private mode: the in-memory guard still isolates games. */
     }
   }
   listeners.forEach((fn) => fn());
 }
 
-/** Drafts and read markers stay in this browser tab, never in room state or host logs. */
 export function useLocalState<T>(
   key: string,
   initial: T,
@@ -92,7 +86,6 @@ export function useLocalState<T>(
         else sessionStorage.setItem(key, next);
       }
     } catch {
-      /* in-memory fallback */
     }
     listeners.forEach((fn) => fn());
   };

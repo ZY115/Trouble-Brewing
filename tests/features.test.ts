@@ -301,7 +301,7 @@ describe("public vote ledger", () => {
     const original = view(a).publicRecords.find((e) => e.type === "vote")!;
     expect(original.day).toBe(1);
     expect(original.period).toBe("DAY");
-    expect(original.text).toContain("1号、3号（2票）");
+    expect(original.text).toContain("1 号、3 号（2 票）");
     act(host, { type: "end" });
     act(a, { type: "request_seat", number: 3 });
     act(host, {
@@ -321,7 +321,7 @@ describe("public vote ledger", () => {
       2,
     );
     expect(view(a).publicRecords.at(-1)?.text).toContain(
-      "1号提名2号；投票：1号",
+      "1 号提名 2 号；投票：1 号",
     );
     expect(() => act(host, correction)).toThrow("已被修订");
     act(host, { type: "new_round" });

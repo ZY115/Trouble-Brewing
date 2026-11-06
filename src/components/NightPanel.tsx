@@ -1,4 +1,5 @@
 import QuickAction from "./QuickAction";
+import Picker, { roleOptions } from "../ui/Picker";
 import FirstInformation from "./FirstInformation";
 import Conversation from "./Conversation";
 import {
@@ -197,7 +198,6 @@ export function ActionCard({
               {w}
             </p>
           ))}
-          <small>仅说书人可见；发送内容以下方裁定为准。</small>
         </section>
       )}
       {st &&
@@ -206,7 +206,7 @@ export function ActionCard({
           <>
             {stale && (
               <div role="alert" className="notice">
-                真实状态或目标已改变，草稿已保留。请核对上方最新参考后再发。
+                状态或目标有变化，草稿还在，核对后再发。
                 <button
                   onClick={() => setDraft({ ...draft, context, selection })}
                 >
@@ -262,7 +262,7 @@ export function ActionCard({
         <details className="action-resolution">
           <summary>取消 / 已在线下处理</summary>
           <label className="field">
-            仅说书人可见的原因
+            原因
             <input
               aria-label={`处理 ${seat.number} 号待办的原因`}
               maxLength={200}
@@ -403,8 +403,8 @@ export default function NightPanel({
           <h2>{room.storyteller ? "夜间工作台" : "夜间信息"}</h2>
           <p>
             {room.storyteller
-              ? `待处理 ${pending.length} 项 · 草稿保留在本页浏览器，状态改变后需重新核对。`
-              : "点号码确认行动；也可在下面私聊说书人，两者独立发送。"}
+              ? `待处理 ${pending.length} 项`
+              : "点号码确认行动。"}
           </p>
         </div>
       </div>
@@ -456,33 +456,30 @@ export default function NightPanel({
               </p>
             )}
             <div className="two-columns">
-              <label className="field">
-                接收玩家
-                <select
-                  value={seatId}
-                  onChange={(e) => setSeatId(e.target.value)}
-                >
-                  {room.seats.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.number} 号 ·{" "}
-                      {roleName(
-                        room.storyteller?.assignments[s.id]?.actualRoleId,
-                      )}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                需要选择的目标
-                <select
-                  value={targetCount}
-                  onChange={(e) => setTargetCount(Number(e.target.value))}
-                >
-                  <option value={0}>无需选择，直接给信息</option>
-                  <option value={1}>选择 1 人</option>
-                  <option value={2}>选择 2 人</option>
-                </select>
-              </label>
+              <Picker
+                label="接收玩家"
+                value={seatId}
+                options={[...room.seats]
+                  .sort((a, b) => a.number - b.number)
+                  .map((s) => ({
+                    value: s.id,
+                    label: `${s.number} 号 · ${roleName(room.storyteller?.assignments[s.id]?.actualRoleId)}`,
+                    text: `${s.number} 号`,
+                  }))}
+                onChange={setSeatId}
+                clearable={false}
+              />
+              <Picker
+                label="需要选择的目标"
+                value={String(targetCount)}
+                options={[
+                  { value: "0", label: "无需选择，直接给信息" },
+                  { value: "1", label: "选择 1 人" },
+                  { value: "2", label: "选择 2 人" },
+                ]}
+                onChange={(v) => setTargetCount(Number(v))}
+                clearable={false}
+              />
             </div>
             <button
               type="button"
@@ -496,42 +493,27 @@ export default function NightPanel({
             >
               按认知身份填入常用提示
             </button>
-            <label className="field">
-              玩家动作句
-              <select
-                aria-label="玩家动作句"
-                value={choiceKind}
-                onChange={(e) =>
-                  setRequest((prev) => ({
-                    ...prev,
-                    choiceKind: e.target.value,
-                  }))
-                }
-              >
-                <option value="auto">按玩家认知身份</option>
-                {CHOICE_KINDS.map((kind) => (
-                  <option key={kind} value={kind}>
-                    {choiceLabels[kind]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              查验参考
-              <select
-                aria-label="查验参考身份"
-                value={referenceRoleId}
-                onChange={(e) => setReferenceRoleId(e.target.value)}
-              >
-                <option value="auto">按玩家认知身份</option>
-                <option value="">自定义信息（不计算）</option>
-                {ROLES.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Picker
+              label="玩家动作句"
+              value={choiceKind}
+              options={[
+                { value: "auto", label: "按玩家认知身份" },
+                ...CHOICE_KINDS.map((kind) => ({ value: kind, label: choiceLabels[kind] })),
+              ]}
+              onChange={(v) => setRequest((prev) => ({ ...prev, choiceKind: v }))}
+              clearable={false}
+            />
+            <Picker
+              label="查验参考"
+              value={referenceRoleId}
+              options={[
+                { value: "auto", label: "按玩家认知身份" },
+                { value: "", label: "自定义信息（不计算）" },
+                ...roleOptions(),
+              ]}
+              onChange={setReferenceRoleId}
+              clearable={false}
+            />
             <label className="field">
               行动提示
               <input
@@ -548,9 +530,6 @@ export default function NightPanel({
             >
               创建待办
             </button>
-            <p className="muted">
-              模板只填提示，不决定今晚是否触发能力。夜序、醉酒中毒、特殊登记和反馈内容仍由你裁定。
-            </p>
           </form>
         </details>
       )}

@@ -22,7 +22,6 @@ export function chatContacts(room: RoomView): Contact[] {
   ];
 }
 
-/** Every message between me and one contact, or in one shared channel. */
 export function threadWith(room: RoomView, id: string): ChatMessage[] {
   const me = room.viewer.seatId ?? "storyteller";
   return room.messages.filter((m) =>

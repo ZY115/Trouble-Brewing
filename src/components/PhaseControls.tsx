@@ -1,18 +1,24 @@
 import { useState } from "react";
+import Picker from "../ui/Picker";
 import type { RoomView } from "../../shared/types";
 import type { Send } from "../useRoom";
 import { localKey, useLocalState } from "../localState";
 import PhaseConfirmation from "./PhaseConfirmation";
+import { phaseReview } from "../../shared/phase-review";
+import { markAdvance } from "../storyteller/phaseIntent";
 
 export default function PhaseControls({
   room,
   send,
   part = "all",
+  quiet = false,
+  direct = false,
 }: {
   room: RoomView;
   send: Send;
-  /** The top bar shows only the advance button; settings live in the "more" drawer. */
   part?: "all" | "button" | "settings";
+  quiet?: boolean;
+  direct?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -41,9 +47,35 @@ export default function PhaseControls({
     <div className="phase-controls">
       {part !== "settings" && (
         <button
-          className="primary"
+          className={quiet ? "" : "primary"}
           disabled={busy || !active}
-          onClick={() => setConfirming(true)}
+          onClick={async () => {
+            const review = phaseReview(room, publishLifeOnDawn);
+            const night = room.phase !== "DAY";
+            const plan = st.nightPlan.filter((i) => i.night === room.day);
+            const clean =
+              !review.blocked &&
+              !st.notices.length &&
+              (!night ||
+                (plan.length > 0 &&
+                  plan.every((i) => i.status !== "planned" || i.retiredReason) &&
+                  (room.phase !== "FIRST_NIGHT" || st.evilInfoSent || st.evilReleased)));
+            if (!direct || !clean) return setConfirming(true);
+            setBusy(true);
+            try {
+              await markAdvance(
+                st.phaseVersion,
+                send({
+                  type: "next_phase",
+                  expectedPhaseVersion: st.phaseVersion,
+                  expectedReviewKey: review.key,
+                  publishLifeOnDawn,
+                }),
+              );
+            } finally {
+              setBusy(false);
+            }
+          }}
         >
           {room.phase === "DAY"
             ? "进入下一夜"
@@ -71,14 +103,14 @@ export default function PhaseControls({
                 disabled={busy}
                 onChange={(e) => setPublishLifeOnDawn(e.target.checked)}
               />
-              天亮时统一公布生死（取消后可稍后手动公布）
+              天亮时公布生死
             </label>
           )}
           {active && (
             <details>
               <summary>更正天数 / 阶段</summary>
               <p className="muted">
-                保留历史、取消未完成夜间待办并清除计时。更正为白天也会公布待发布生死；已经公开的信息不会收回。
+                历史会保留，今晚没处理完的行动会取消。已经公开的信息不会收回。
               </p>
               {draft.version !== st.phaseVersion && (
                 <p className="notice">
@@ -114,24 +146,23 @@ export default function PhaseControls({
                     }
                   />
                 </label>
-                <label className="field">
-                  阶段
-                  <select
-                    aria-label="更正阶段"
-                    value={draft.phase}
-                    onChange={(e) =>
-                      set({
-                        ...draft,
-                        phase: e.target.value as typeof draft.phase,
-                        confirmed: false,
-                      })
-                    }
-                  >
-                    <option value="FIRST_NIGHT">首夜</option>
-                    <option value="DAY">白天</option>
-                    <option value="OTHER_NIGHT">其他夜晚</option>
-                  </select>
-                </label>
+                <Picker
+                  label="阶段"
+                  value={draft.phase}
+                  options={[
+                    { value: "FIRST_NIGHT", label: "首夜" },
+                    { value: "DAY", label: "白天" },
+                    { value: "OTHER_NIGHT", label: "其他夜晚" },
+                  ]}
+                  onChange={(v) =>
+                    set({
+                      ...draft,
+                      phase: v as typeof draft.phase,
+                      confirmed: false,
+                    })
+                  }
+                  clearable={false}
+                />
               </div>
               <label className="field">
                 公开更正原因

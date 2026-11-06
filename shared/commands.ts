@@ -10,6 +10,7 @@ const setup = z
   })
   .strict();
 export const commandSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("undo_private_edit"), expectedRevision: z.number().int().min(0) }).strict(),
   z
     .object({
       type: z.literal("finish_game"),
@@ -29,7 +30,6 @@ export const commandSchema = z.discriminatedUnion("type", [
       day: z.number().int().min(1),
       period: z.enum(["DAY", "NIGHT"]),
       text: z.string().trim().min(1).max(2000),
-      hidden: z.boolean().default(false),
     })
     .strict(),
   z
@@ -89,11 +89,14 @@ export const commandSchema = z.discriminatedUnion("type", [
     .strict(),
   z
     .object({
-      type: z.enum([
-        "clear_expired_conditions",
-        "keep_expired_conditions",
-        "send_evil_info",
-      ]),
+      type: z.enum(["clear_expired_conditions", "keep_expired_conditions"]),
+      expectedContextVersion: z.number().int().min(0),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("send_evil_info"),
+      offline: z.boolean().optional(),
       expectedContextVersion: z.number().int().min(0),
     })
     .strict(),
@@ -233,6 +236,7 @@ export const commandSchema = z.discriminatedUnion("type", [
     .object({
       type: z.literal("execute_player"),
       seatId: id,
+      nominee: id.optional(),
       reason: z.string().trim().min(1).max(200),
       confirmed: z.literal(true),
       died: z.boolean().optional(),
@@ -261,13 +265,19 @@ export const commandSchema = z.discriminatedUnion("type", [
   z
     .object({ type: z.literal("raise_hand"), voteId: id, raised: z.boolean() })
     .strict(),
-  z.object({ type: z.literal("start_count"), voteId: id }).strict(),
   z
     .object({
-      type: z.literal("count_vote"),
+      type: z.literal("start_countdown"),
       voteId: id,
-      cursor: z.number().int().min(0),
-      offlineVote: z.boolean().optional(),
+      seconds: z.number().int().min(3).max(60),
+    })
+    .strict(),
+  z.object({ type: z.literal("lock_vote"), voteId: id }).strict(),
+  z
+    .object({
+      type: z.literal("finish_vote"),
+      voteId: id,
+      voters: z.array(id).max(20),
     })
     .strict(),
   z
@@ -283,6 +293,14 @@ export const commandSchema = z.discriminatedUnion("type", [
       seatId: id,
       available: z.boolean(),
       reason: z.string().trim().min(1).max(200),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("set_action_targets"),
+      actionId: id,
+      targets: z.array(id).max(3),
+      expectedVersion: z.number().int().min(0),
     })
     .strict(),
   z
@@ -392,7 +410,33 @@ export const commandSchema = z.discriminatedUnion("type", [
     .strict(),
   z.object({ type: z.literal("end") }).strict(),
   z
-    .object({ type: z.literal("set_alive"), seatId: id, alive: z.boolean() })
+    .object({ type: z.literal("set_bluffs"), bluffs: z.array(id).length(3) })
+    .strict(),
+  z
+    .object({ type: z.literal("set_claim"), seatId: id, roleId: id.nullable() })
+    .strict(),
+  z
+    .object({ type: z.literal("set_verdict"), target: id, verdict: z.enum(["good", "evil"]).nullable() })
+    .strict(),
+  z.object({ type: z.literal("share_bluffs") }).strict(),
+  z
+    .object({ type: z.literal("claim_bluff"), roleId: id.nullable() })
+    .strict(),
+  z
+    .object({
+      type: z.literal("slayer_shot"),
+      shooter: id,
+      target: id,
+      kill: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("set_alive"),
+      seatId: id,
+      alive: z.boolean(),
+      reason: z.string().trim().max(100).optional(),
+    })
     .strict(),
   z
     .object({

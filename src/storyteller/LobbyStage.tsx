@@ -37,7 +37,7 @@ export default function LobbyStage({
       key: `n${n}`,
       number: n,
       glyph: String(n),
-      label: count > 1 ? `${count} 人重号` : count ? "已登记" : "未登记",
+      label: count > 1 ? `${count} 人重号` : undefined,
       tone: count > 1 ? "conflict" : count ? "neutral" : "empty",
       ariaLabel: `${n} 号，${count > 1 ? `${count} 人重号` : count ? "已登记" : "未登记"}`,
     };
@@ -45,6 +45,46 @@ export default function LobbyStage({
   const issues = validateSetup(room.capacity, st.setup);
   const mode = room.roundSetup?.mode;
   const seatingPending = mode === "host" && !room.roundSetup!.seatingConfirmed;
+  const setupPanel = (
+    <section className="panel" aria-label="配板">
+      <div className="panel-heading">
+        <h3>配板</h3>
+        <span className="muted" style={{ fontSize: 12 }}>
+          {status.open ? "入场开放中 · 已锁定" : `${room.capacity} 人局`}
+        </span>
+      </div>
+      {TEAMS.map(([team, name, color]) => {
+        const roles = st.setup.roleIds.filter(
+          (id) => ROLES.find((r) => r.id === id)?.team === team,
+        );
+        if (!roles.length) return null;
+        return (
+          <div className="setup-chips" key={team}>
+            <span className="muted" style={{ width: 56, fontSize: 12 }}>
+              {name} {roles.length}
+            </span>
+            {roles.map((id) => (
+              <span key={id} className="role-chip" style={{ color }} title={roleName(id)}>
+                {roleGlyph(id)}
+              </span>
+            ))}
+          </div>
+        );
+      })}
+      <span className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
+        {st.setup.roleIds.includes("drunk") ? `酒鬼以为自己是${roleName(st.setup.drunkAs)} · ` : ""}
+        假身份：{st.setup.bluffs.map(roleName).join("、") || "未设置"}
+      </span>
+      {issues.some((i) => i.level === "error") && (
+        <p className="reference-warning">
+          {issues.filter((i) => i.level === "error").map((i) => i.message).join("；")}
+        </p>
+      )}
+      <button disabled={status.open} onClick={openSetup}>
+        {status.open ? "暂停入场后可修改配板" : "打开配板工坊"}
+      </button>
+    </section>
+  );
   async function act(command: Parameters<Send>[0]) {
     setBusy(true);
     await send(command);
@@ -69,9 +109,9 @@ export default function LobbyStage({
                   {status.duplicateNumbers.join("、")} 号重复
                 </span>
               )}
-              {!!status.missingNumbers.length && (
+              {!!status.missingNumbers.length && status.missingNumbers.length <= 4 && (
                 <span className="muted" style={{ fontSize: 14 }}>
-                  {status.missingNumbers.join("、")} 号尚未登记
+                  还差 {status.missingNumbers.join("、")} 号
                 </span>
               )}
               <span className="muted" style={{ fontSize: 12 }}>
@@ -87,57 +127,25 @@ export default function LobbyStage({
         {mode === "rescan" && !room.seats.length && (
           <p className="lobby-callout">这一局所有玩家都要重新扫码登记。</p>
         )}
-        <section className="panel" aria-label="配板">
-          <div className="panel-heading">
-            <h3>配板</h3>
-            <span className="muted" style={{ fontSize: 12 }}>
-              {status.open ? "入场开放中 · 已锁定" : `${room.capacity} 人局`}
-            </span>
-          </div>
-          {TEAMS.map(([team, name, color]) => {
-            const roles = st.setup.roleIds.filter(
-              (id) => ROLES.find((r) => r.id === id)?.team === team,
-            );
-            if (!roles.length) return null;
-            return (
-              <div className="setup-chips" key={team}>
-                <span className="muted" style={{ width: 56, fontSize: 12 }}>
-                  {name} {roles.length}
-                </span>
-                {roles.map((id) => (
-                  <span key={id} className="role-chip" style={{ color }} title={roleName(id)}>
-                    {roleGlyph(id)}
-                  </span>
-                ))}
-              </div>
-            );
-          })}
-          <span className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
-            {st.setup.roleIds.includes("drunk") ? `酒鬼以为自己是${roleName(st.setup.drunkAs)} · ` : ""}
-            假身份：{st.setup.bluffs.map(roleName).join("、") || "未设置"}
-          </span>
-          {issues.some((i) => i.level === "error") && (
-            <p className="reference-warning">
-              {issues.filter((i) => i.level === "error").map((i) => i.message).join("；")}
-            </p>
-          )}
-          <button disabled={status.open} onClick={openSetup}>
-            {status.open ? "暂停入场后可修改配板" : "打开配板工坊"}
-          </button>
-        </section>
-        <Invitation room={room} onFullscreen={onScan} />
         {status.open ? (
-          <button disabled={busy} onClick={() => void act({ type: "close_registration" })}>
-            暂停入场 · 修改配板
-          </button>
+          <>
+            <Invitation room={room} onFullscreen={onScan} />
+            <button disabled={busy} onClick={() => void act({ type: "close_registration" })}>
+              暂停入场 · 修改配板
+            </button>
+            {setupPanel}
+          </>
         ) : (
-          <button
-            className="primary"
-            disabled={busy || seatingPending}
-            onClick={() => void act({ type: "open_registration" })}
-          >
-            {seatingPending ? "先确认座位表" : "确认配板并开放入场"}
-          </button>
+          <>
+            {setupPanel}
+            <button
+              className="primary"
+              disabled={busy || seatingPending}
+              onClick={() => void act({ type: "open_registration" })}
+            >
+              {seatingPending ? "先确认座位表" : "确认配板并开放入场"}
+            </button>
+          </>
         )}
         <details className="panel">
           <summary>登记明细与异常处理</summary>

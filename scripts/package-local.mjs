@@ -22,7 +22,7 @@ try {
   cpSync("scripts/debug.mjs", join(folder, "scripts/debug.mjs"));
   mkdirSync(join(folder, "licenses"));
   cpSync(
-    "src/vendor/LICENSE.tiny-grimoire",
+    "licenses/LICENSE.tiny-grimoire",
     join(folder, "licenses/LICENSE.tiny-grimoire"),
   );
   mkdirSync("release", { recursive: true });

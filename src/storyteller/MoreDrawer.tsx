@@ -55,7 +55,7 @@ export default function MoreDrawer({
         {confirm && (
           <div className="notice" role="alert">
             <span style={{ width: "100%" }}>
-              开放后，邪恶玩家可见队友名单，小恶魔可见三个假身份。确认线下信息环节已经完成？
+              开放后邪恶玩家能看到队友，恶魔能看到假身份。确认已经线下告知？
             </span>
             <button onClick={() => setConfirm("")}>取消</button>
             <button
@@ -70,11 +70,11 @@ export default function MoreDrawer({
         )}
       </section>
       <section className="panel">
-        <h3>恢复玩家 · 备份管理入口</h3>
+        <h3>玩家换手机</h3>
         <RoomAccess room={room} session={session} />
       </section>
       <details className="panel">
-        <summary>操作日志（仅说书人）</summary>
+        <summary>操作日志</summary>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {[...st.events].reverse().slice(0, 120).map((e) => (
             <div key={e.id} style={{ display: "flex", gap: 10, fontSize: 13, borderTop: "1px solid var(--line)", paddingTop: 6 }}>

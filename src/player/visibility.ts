@@ -3,7 +3,6 @@ import type { NightAction, RoomView } from "../../shared/types";
 export const isNight = (room: RoomView) =>
   room.phase === "FIRST_NIGHT" || room.phase === "OTHER_NIGHT";
 
-/** A ruling reaches its player the moment the storyteller sends it. */
 export function revealedActions(room: RoomView): NightAction[] {
   return room.actions.filter((a) => a.status === "DELIVERED");
 }
@@ -12,7 +11,6 @@ export function visibleRoom(room: RoomView): RoomView {
   return room;
 }
 
-/** Storyteller messages that arrived during a night, grouped like rulings. */
 export function nightMessages(room: RoomView) {
   const me = room.viewer.seatId;
   const nights = room.publicRecords.filter((r) => r.type === "phase");

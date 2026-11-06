@@ -1,4 +1,4 @@
-import { localKey, useLocalState } from "../localState";
+import type { Send } from "../useRoom";
 import type {
   NotebookEntry,
   NoteRevision,
@@ -22,7 +22,6 @@ const newer = (a: NoteRevision, b: NoteRevision) =>
     ? (a.sequence ?? 0) > (b.sequence ?? 0)
     : a.savedAt > b.savedAt;
 
-/** The latest live role note and free note this player keeps for each seat. */
 export function seatNotes(room: RoomView) {
   return latestNotes(room.notebook);
 }
@@ -42,13 +41,11 @@ export function latestNotes(
   return out;
 }
 
-/** "洗衣妇" for a claim, "洗衣妇?" for a guess. */
 export const roleLabel = (rev?: NoteRevision) =>
   rev?.roleId
     ? `${roleName(rev.roleId)}${rev.source === "suspected" ? "?" : ""}`
     : "";
 
-/** What they said they learned, in one line: "3、7 号 · 厨师". */
 export function claimSummary(rev: NoteRevision, seats: PublicSeat[]) {
   const fields = claimFields(rev.roleId).filter((f) => rev.info[f.key]);
   const nums = fields
@@ -71,22 +68,9 @@ export function claimSummary(rev: NoteRevision, seats: PublicSeat[]) {
 
 export type Verdict = "good" | "evil";
 
-/**
- * A quick good/evil read per seat. It lives only on this phone: it is a gut
- * feeling, and keeping it local means changing it is instant and silent.
- */
-export function useVerdicts(room: RoomView) {
-  const [verdicts, setVerdicts] = useLocalState<Record<string, Verdict>>(
-    localKey(room, "verdicts"),
-    {},
-  );
-  const setVerdict = (seatId: string, verdict: Verdict | "") => {
-    setVerdicts((old) => {
-      const next = { ...old };
-      if (verdict) next[seatId] = verdict;
-      else delete next[seatId];
-      return next;
-    });
-  };
+export function useVerdicts(room: RoomView, send: Send) {
+  const verdicts = room.self?.verdicts ?? {};
+  const setVerdict = (seatId: string, verdict: Verdict | "") =>
+    void send({ type: "set_verdict", target: seatId, verdict: verdict || null });
   return { verdicts, setVerdict };
 }

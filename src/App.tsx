@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { ConnectionContext } from "./components/connection";
 import QRCode from "react-qr-code";
 import type { RoomView, Session } from "../shared/types";
-import { useRoom, type Send } from "./useRoom";
+import { connectionLabels, useRoom, type Send } from "./useRoom";
 import Entry from "./components/Entry";
 import { useJoinLink } from "./components/Invitation";
 import { loadSession, saveSession, forgetSession, debugSeatId } from "./session";
@@ -22,7 +23,15 @@ function Brand() {
   );
 }
 
-/** Join QR only: safe to turn the tablet towards the players. */
+function SlowExit({ children }: { children: React.ReactNode }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), 4000);
+    return () => clearTimeout(timer);
+  }, []);
+  return slow ? <>{children}</> : null;
+}
+
 function ScanOnly({
   room,
   send,
@@ -49,7 +58,7 @@ function ScanOnly({
       </p>
       {error && (
         <p role="alert" className="error">
-          无法完成操作，请返回说书人界面检查设置。
+          操作没有完成，请回到说书人界面检查。
         </p>
       )}
       <div className="action-buttons" style={{ justifyContent: "center" }}>
@@ -82,7 +91,7 @@ function GameApp() {
     sessionStorage.setItem("clocktower.scanRoom", code);
     setScanRoom(code);
   }
-  const { room, connected, error, setError, send, revoked } = useRoom(session);
+  const { room, connected, connectionPhase, operationMessage, retryConnection, error, setError, send, revoked } = useRoom(session);
   useEffect(() => {
     if (revoked) {
       if (session) forgetSession(session);
@@ -102,8 +111,13 @@ function GameApp() {
     return (
       <div className="loading">
         <Brand />
-        <p>{error || "正在连接房间…"}</p>
-        <button onClick={leave}>返回入口</button>
+        <p role="status">{connectionLabels[connectionPhase]}</p>
+        {error && <p>{error}</p>}
+        {operationMessage && <p role="status">{operationMessage}</p>}
+        <SlowExit>
+          <button onClick={retryConnection}>立即重连</button>
+          <button onClick={leave}>返回入口</button>
+        </SlowExit>
       </div>
     );
   const loading = (
@@ -117,6 +131,8 @@ function GameApp() {
       return <ScanOnly room={room} send={send} error={error} onBack={() => scan("")} />;
     return (
       <Suspense fallback={loading}>
+        <ConnectionContext.Provider value={connected}>
+        {operationMessage && <div className="op-toast" role="status">{operationMessage}</div>}
         <StorytellerApp
           key={`${room.code}-${room.gameNo}`}
           room={room}
@@ -128,15 +144,18 @@ function GameApp() {
           onLeave={leave}
           onScan={() => scan(room.code)}
         />
+        </ConnectionContext.Provider>
       </Suspense>
     );
   }
   return (
     <Suspense fallback={loading}>
+      <ConnectionContext.Provider value={connected}>
       {debugSeatId && <div className="notice" style={{ margin: "8px 16px" }}>
         单人调试 · {room.seats.find((s) => s.id === room.viewer.seatId)?.number} 号玩家
         <a href="/host">返回说书人</a>
       </div>}
+      {operationMessage && <div className="op-toast quiet" role="status">{operationMessage}</div>}
       <PlayerApp
         key={`${room.code}-${room.gameNo}-${room.viewer.seatId}-${room.playId ?? "waiting"}`}
         room={room}
@@ -146,6 +165,7 @@ function GameApp() {
         setError={setError}
         onLeave={leave}
       />
+      </ConnectionContext.Provider>
     </Suspense>
   );
 }

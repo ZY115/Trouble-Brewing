@@ -24,7 +24,7 @@ export default function RulingCorrection({
     <details className="action-resolution">
       <summary>更正这条反馈</summary>
       <p className="muted">
-        旧版保留并标记已失效；新裁定和说明仅发送给这位玩家。
+        只发给这位玩家，旧答案会标为已更正。
       </p>
       {stale && (
         <p className="notice">

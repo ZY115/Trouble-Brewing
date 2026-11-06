@@ -1,7 +1,7 @@
 import { useState } from "react";
+import Picker, { seatOptions } from "../ui/Picker";
 import type { RoomView } from "../../shared/types";
 import type { Send } from "../useRoom";
-/** One part at a time: pending invitations, the new-group form, or the open group. */
 export default function GroupControls({
   room,
   send,
@@ -128,20 +128,13 @@ export default function GroupControls({
         <div className="group-members">
           <p>成员：{Object.keys(group.members).map(seatName).join("、")}</p>
           <div className="inline-form">
-            <select
-              aria-label="邀请加入当前群的玩家"
+            <Picker
+              label="邀请谁"
               value={invitee}
-              onChange={(e) => setInvitee(e.target.value)}
-            >
-              <option value="">选择邀请对象</option>
-              {room.seats
-                .filter((s) => !(s.id in group.members))
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nickname}
-                  </option>
-                ))}
-            </select>
+              options={seatOptions(room.seats.filter((s) => !(s.id in group.members)))}
+              onChange={setInvitee}
+              placeholder="选择邀请对象"
+            />
             <button
               disabled={!invitee || busy || ended}
               onClick={async () => {

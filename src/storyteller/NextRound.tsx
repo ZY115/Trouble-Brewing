@@ -5,7 +5,6 @@ import Picker from "../ui/Picker";
 
 type SeatMode = "keep" | "host" | "rescan";
 
-/** "再来一局" unfolds into how the table is seated for the next game. */
 export function NextRound({ send }: { send: Send }) {
   const [open, setOpen] = useState(false);
   const [moving, setMoving] = useState(false);
@@ -76,10 +75,6 @@ export function NextRound({ send }: { send: Send }) {
   );
 }
 
-/**
- * Host-controlled seating between games: each device keeps its login and gets
- * the number of the chair it now sits in. Picking a taken number swaps the two.
- */
 export function SeatingEditor({ room, send }: { room: RoomView; send: Send }) {
   const st = room.storyteller!;
   const confirmed = !!room.roundSetup?.seatingConfirmed;
@@ -130,7 +125,7 @@ export function SeatingEditor({ room, send }: { room: RoomView; send: Send }) {
         <p className="task-note">先暂停入场，再修改座位。</p>
       ) : (
         <>
-          <p className="task-note">每一行是一台手机，改成这位玩家现在坐的号码；选到别人的号码会自动互换。</p>
+          <p className="task-note">每行是一台手机，改成他现在坐的号码；选到别人的号码会自动互换。</p>
           <div className="seating-rows">
             {seats.map((s) => (
               <div key={s.id} className={value(s.id) !== s.number ? "changed" : ""}>

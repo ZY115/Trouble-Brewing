@@ -1,4 +1,5 @@
 import ExecutionHistory from "./ExecutionHistory";
+import Picker, { roleOptions, seatOptions } from "../ui/Picker";
 import { useState } from "react";
 import { isEvil, ROLES, roleName } from "../../shared/roles";
 import { completedAction } from "../../shared/assistance";
@@ -46,56 +47,39 @@ export function PlayerEditor({
       </div>
       {stale && (
         <p role="alert" className="notice">
-          状态已变化。请关闭后重新打开，核对最新内容再保存。
+          情况有变化，请关掉重开后再保存。
         </p>
       )}
       <div className="form-grid">
-        <label className="field">
-          真实身份
-          <select
-            aria-label="真实身份"
-            value={actualRoleId}
-            onChange={(e) => {
-              setActual(e.target.value);
-              setPerceived(
-                e.target.value === "drunk" ? "washerwoman" : e.target.value,
-              );
-            }}
-          >
-            {ROLES.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Picker
+          label="真实身份"
+          value={actualRoleId}
+          options={roleOptions()}
+          onChange={(v) => {
+            setActual(v);
+            setPerceived(v === "drunk" ? "washerwoman" : v);
+          }}
+          clearable={false}
+        />
         {actualRoleId === "drunk" && (
-          <label className="field">
-            酒鬼认知身份
-            <select
-              aria-label="酒鬼认知身份"
-              value={perceivedRoleId}
-              onChange={(e) => setPerceived(e.target.value)}
-            >
-              {ROLES.filter((r) => r.team === "townsfolk").map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Picker
+            label="酒鬼认知身份"
+            value={perceivedRoleId}
+            options={roleOptions(ROLES.filter((r) => r.team === "townsfolk"))}
+            onChange={setPerceived}
+            clearable={false}
+          />
         )}
-        <label className="field">
-          生死
-          <select
-            aria-label="生死状态"
-            value={String(alive)}
-            onChange={(e) => setAlive(e.target.value === "true")}
-          >
-            <option value="true">存活</option>
-            <option value="false">死亡</option>
-          </select>
-        </label>
+        <Picker
+          label="生死"
+          value={String(alive)}
+          options={[
+            { value: "true", label: "存活" },
+            { value: "false", label: "死亡" },
+          ]}
+          onChange={(v) => setAlive(v === "true")}
+          clearable={false}
+        />
       </div>
       <div className="condition-options">
         {(
@@ -118,7 +102,7 @@ export function PlayerEditor({
         ))}
       </div>
       <p className="muted">
-        夜间生死暂不公布，默认宣布天亮时公布。更正为存活会撤销有效处决死亡登记；身份更改同步该玩家的身份卡和邪恶频道资格。
+        改为存活会撤销对应的处决死亡。
       </p>
       <label className="field">
         私密状态备注
@@ -132,7 +116,7 @@ export function PlayerEditor({
         />
       </label>
       <label className="field">
-        修改原因（选填，仅说书人可见）
+        修改原因（选填）
         <input
           aria-label="状态修改原因"
           maxLength={200}
@@ -172,10 +156,12 @@ export default function StorytellerTable({
   room,
   send,
   navigate,
+  onSeat,
 }: {
   room: RoomView;
   send: Send;
   navigate: (tab: string) => void;
+  onSeat?: (seatId: string) => void;
 }) {
   const st = room.storyteller!;
   const [selected, setSelected] = useState("");
@@ -202,13 +188,10 @@ export default function StorytellerTable({
           {room.phase === "DAY" ? "进入公开投票" : "处理夜间待办"}
         </button>
       </div>
-      <p className="muted">
-        登记状态 → 核对玩家选择与真实参考 → 编辑裁定 → 确认发送
-      </p>
       <div className="panel table-scroll">
         <table className="state-table">
           <caption>
-            仅说书人可见 · 第 {room.day} {room.phase === "DAY" ? "天" : "夜"}
+            第 {room.day} {room.phase === "DAY" ? "天" : "夜"}
           </caption>
           <thead>
             <tr>
@@ -299,7 +282,7 @@ export default function StorytellerTable({
                   <td>
                     <button
                       disabled={!active || !a}
-                      onClick={() => setSelected(s.id)}
+                      onClick={() => (onSeat ? onSeat(s.id) : setSelected(s.id))}
                     >
                       管理 {s.number} 号
                     </button>
@@ -330,35 +313,25 @@ export default function StorytellerTable({
       {active && (
         <details className="panel">
           <summary>占卜误判目标与状态说明</summary>
-          <p className="muted">
-            占卜师的误判目标需由你指定。状态标记由你更新、清除，不自动应用能力。
-          </p>
           <p>
             当前误判目标：
             {st.redHerring
               ? `${room.seats.find((s) => s.id === st.redHerring)?.number} 号`
               : "未设置"}
           </p>
-          <label className="field">
-            误判目标
-            <select
-              aria-label="占卜误判目标"
-              value={redHerring}
-              onChange={(e) => {
-                setRedHerring(e.target.value);
-                setRedVersion(st.contextVersion);
-              }}
-            >
-              <option value="">未设置</option>
-              {room.seats
-                .filter((s) => !isEvil(st.assignments[s.id]?.actualRoleId))
-                .map((s) => (
-                  <option value={s.id} key={s.id}>
-                    {s.number} 号
-                  </option>
-                ))}
-            </select>
-          </label>
+          <Picker
+            label="误判目标"
+            value={redHerring}
+            options={[
+              { value: "", label: "未设置" },
+              ...seatOptions(room.seats.filter((s) => !isEvil(st.assignments[s.id]?.actualRoleId))),
+            ]}
+            onChange={(v) => {
+              setRedHerring(v);
+              setRedVersion(st.contextVersion);
+            }}
+            clearable={false}
+          />
           <button
             onClick={() =>
               void send({

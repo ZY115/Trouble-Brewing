@@ -223,6 +223,11 @@ export function featureCommand(
       r.dismissedNotices = [];
       r.staleConditions = [];
       r.evilInfoSent = false;
+      r.bluffsShared = false;
+      r.bluffClaims = {};
+      r.claims = {};
+      r.effectSources = {};
+      r.verdicts = {};
       r.recoveryTickets = {};
       r.gameNo++;
       r.playId = undefined;
@@ -259,8 +264,6 @@ export function featureCommand(
         mode: c.seatMode ?? "keep",
         seatingConfirmed: c.seatMode !== "host",
       };
-      // An explicit choice supersedes earlier change requests. Legacy clients
-      // keep their existing request/approval workflow when omitting seatMode.
       if (c.seatMode) r.seatRequests = [];
       if (c.seatMode === "rescan") {
         r.seats = [];
@@ -303,7 +306,7 @@ export function featureCommand(
         Object.fromEntries(r.seats.map((s) => [s.id, s.number]));
       c.voters.forEach(seat);
       const names =
-        c.voters.map((id) => `${seatNumbers[id]}号`).join("、") || "无人";
+        c.voters.map((id) => `${seatNumbers[id]} 号`).join("、") || "无人";
       const deadAtVote = prior
         ? (prior.deadAtVote ?? [])
         : r.seats.filter((s) => !s.alive).map((s) => s.id);
@@ -326,7 +329,7 @@ export function featureCommand(
         nominee: c.nominee,
         voters: c.voters,
         supersedes: c.supersedes,
-        text: `${seatNumbers[nominator.id]}号提名${seatNumbers[nominee.id]}号；投票：${names}（${c.voters.length}票）${prior ? `；更正：${c.reason}` : ""}`,
+        text: `${seatNumbers[nominator.id]} 号提名 ${seatNumbers[nominee.id]} 号；投票：${names}（${c.voters.length} 票）${prior ? `；更正：${c.reason}` : ""}`,
       });
       const created = r.publicRecords.at(-1)!;
       created.day = prior?.day ?? r.day;

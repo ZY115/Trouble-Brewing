@@ -37,10 +37,11 @@ function fixture() {
       game.join(host.code, i + 1),
     ),
     ids = players.map((p) => view(p).viewer.seatId!);
-  const initiallyRecommended = view().storyteller!.redHerring!;
-  expect(
-    isEvil(view().storyteller!.assignments[initiallyRecommended].actualRoleId),
-  ).toBe(false);
+  const initiallyRecommended = view().storyteller!.redHerring;
+  const tellerDealt = Object.values(view().storyteller!.assignments).some((a) => a.perceivedRoleId === "fortuneteller");
+  expect(!!initiallyRecommended).toBe(tellerDealt);
+  if (initiallyRecommended)
+    expect(isEvil(view().storyteller!.assignments[initiallyRecommended].actualRoleId)).toBe(false);
   const roles = [
     "washerwoman",
     "librarian",
@@ -181,6 +182,81 @@ describe("reference night order and concurrent collection", () => {
     expect(
       f.view(f.players[11]).actions.some((a) => a.status === "REQUESTED"),
     ).toBe(true);
+  });
+  it("wakes the Ravenkeeper only after dying tonight, and no one once dead", () => {
+    const f = fixture();
+    f.night2();
+    f.act({ type: "generate_night_plan", ...f.plan() });
+    const item = (role: string) =>
+      f.view().storyteller!.nightPlan.find((i) => i.roleId === role)!;
+    expect(item("ravenkeeper").retiredReason).toContain("没有死亡");
+    expect(item("undertaker").retiredReason).toContain("处决");
+    f.apply(f.action(6, 12, "kill"), "kill");
+    expect(item("ravenkeeper").retiredReason).toBeUndefined();
+    f.death(3);
+    expect(item("empath").retiredReason).toContain("已死亡");
+    f.act({ type: "set_alive", seatId: f.ids[2], alive: true });
+    expect(item("empath").retiredReason).toBeUndefined();
+    const ravenkeeper = item("ravenkeeper");
+    f.act({ type: "plan_item", itemId: ravenkeeper.id, operation: "start", ...f.plan() });
+    expect(f.view(f.players[11]).actions.some((a) => a.status === "REQUESTED")).toBe(true);
+  });
+  it("can start everyone at the version right after generating", () => {
+    const f = fixture();
+    f.night2();
+    const before = f.view().storyteller!.planVersion;
+    f.act({ type: "generate_night_plan", ...f.plan() });
+    expect(f.view().storyteller!.planVersion).toBe(before + 1);
+    f.act({
+      type: "start_all_plan",
+      expectedPhaseVersion: f.view().storyteller!.phaseVersion,
+      expectedPlanVersion: before + 1,
+    });
+    const item = (role: string) =>
+      f.view().storyteller!.nightPlan.find((i) => i.roleId === role)!;
+    expect(item("ravenkeeper").status).toBe("planned");
+    expect(item("empath").status).toBe("started");
+  });
+  it("reminds the storyteller that poison ends when the Poisoner dies", () => {
+    const f = fixture();
+    f.night2();
+    f.apply(f.action(7, 3, "poison"), "poison");
+    const effect = () => f.view().storyteller!.notices.find((n) => n.kind === "effect");
+    expect(effect()).toBeUndefined();
+    f.apply(f.action(6, 7, "kill"), "kill");
+    expect(effect()!.effects).toEqual([{ seatId: f.ids[2], condition: "poisoned" }]);
+    expect(effect()!.text).toBe("7 号投毒者已死亡，3 号的中毒应立刻结束。");
+    f.cond(3, "poisoned", false);
+    expect(effect()).toBeUndefined();
+  });
+  it("ends effects whose source changed role or died, and lets the storyteller keep them", () => {
+    const f = fixture();
+    f.night2();
+    f.apply(f.action(7, 3, "poison"), "poison");
+    f.apply(f.action(8, 4, "protect"), "protect");
+    f.change(7, { actualRoleId: "imp", perceivedRoleId: "imp" });
+    f.death(8);
+    const notice = f.view().storyteller!.notices.find((n) => n.kind === "effect")!;
+    expect(notice.text).toBe("7 号已不是投毒者，3 号的中毒应立刻结束。8 号僧侣已死亡，4 号的保护应立刻结束。");
+    f.act({ type: "resolve_notice", noticeId: notice.id, expectedContextVersion: f.ctx() });
+    expect(f.view().storyteller!.notices.some((n) => n.kind === "effect")).toBe(false);
+    f.cond(5, "poisoned", true);
+    expect(f.view().storyteller!.notices.some((n) => n.kind === "effect")).toBe(false);
+  });
+  it("lets the Demon kill a healthy Mayor without an override, but never a healthy Soldier", () => {
+    const f = fixture();
+    f.night2();
+    f.change(10, { actualRoleId: "mayor", perceivedRoleId: "mayor" });
+    f.apply(f.action(6, 10, "kill"), "kill");
+    expect(f.view().seats[9].alive).toBe(false);
+    expect(() => f.apply(f.action(6, 11, "kill"), "kill")).toThrow("核对");
+    expect(f.view().seats[10].alive).toBe(true);
+  });
+  it("keeps the Monk and Butler from choosing themselves", () => {
+    const f = fixture();
+    f.night2();
+    expect(() => f.action(8, 8, "protect")).toThrow("不能选择自己");
+    expect(() => f.action(6, 6, "kill")).not.toThrow();
   });
   it("matches the pinned TB reference night order exactly", () => {
     const sheet = JSON.parse(
@@ -468,7 +544,7 @@ describe("death snapshots and reminders", () => {
       .view()
       .storyteller!.notices.find((n) => n.kind === "demon")!;
     expect(notice.candidates).toEqual([f.ids[8]]);
-    expect(notice.text).toContain("死亡前12人");
+    expect(notice.text).toContain("死前 12 人");
     f.act({ type: "next_phase" });
     f.act({ type: "generate_night_plan", ...f.plan() });
     expect(
@@ -527,7 +603,7 @@ describe("death snapshots and reminders", () => {
     const notice = f
       .view()
       .storyteller!.notices.find((n) => n.kind === "demon")!;
-    expect(notice.text).toContain("能力自杀");
+    expect(notice.text).toContain("小恶魔自杀");
     expect(notice.candidates).toEqual([f.ids[6]]);
     expect(
       f.view(f.players[5]).seats.find((s) => s.id === f.ids[5])!.alive,
@@ -558,7 +634,7 @@ describe("death snapshots and reminders", () => {
     f.cond(10, "poisoned", false);
     expect(
       f.view().storyteller!.notices.find((n) => n.kind === "saint")!.text,
-    ).toContain("当时有中毒");
+    ).toContain("当时中毒");
     f.change(10, { alive: true });
     expect(f.view().storyteller!.notices.some((n) => n.kind === "saint")).toBe(
       false,
@@ -576,13 +652,13 @@ describe("death snapshots and reminders", () => {
     expect(
       f
         .view()
-        .storyteller!.notices.some((n) => n.text.includes("仍有存活恶魔")),
+        .storyteller!.notices.some((n) => n.text.includes("恶魔还活着")),
     ).toBe(true);
     f.death(6);
     expect(
       f
         .view()
-        .storyteller!.notices.some((n) => n.text.includes("不要仅凭人数")),
+        .storyteller!.notices.some((n) => n.text.includes("恶魔已死，先处理继任")),
     ).toBe(true);
   });
 });
@@ -796,5 +872,144 @@ describe("phase confirmation review", () => {
     expect(
       f.view(f.players[0]).seats.find((s) => s.id === f.ids[10])!.alive,
     ).toBe(true);
+  });
+});
+
+describe("the Demon's bluffs", () => {
+  it("lets the storyteller change them before the evil information goes out", () => {
+    const f = fixture();
+    const good = ["investigator", "chef", "virgin", "slayer", "mayor", "butler", "drunk", "recluse"];
+    const free = good.filter((id) => !Object.values(f.view().storyteller!.assignments).some((a) => a.actualRoleId === id));
+    expect(() => f.act({ type: "set_bluffs", bluffs: ["washerwoman", free[0], free[1]] })).toThrow("不在场");
+    expect(() => f.act({ type: "set_bluffs", bluffs: [free[0], free[0], free[1]] })).toThrow("不同");
+    expect(() => f.act({ type: "set_bluffs", bluffs: [free[0], free[1], "imp"] })).toThrow("善良");
+    f.act({ type: "set_bluffs", bluffs: [free[0], free[1], free[2]] });
+    expect(f.view().storyteller!.setup.bluffs).toEqual([free[0], free[1], free[2]]);
+    expect(() => f.act({ type: "set_bluffs", bluffs: [free[0], free[1], free[2]] }, f.players[0])).toThrow("说书人");
+    f.act({ type: "send_evil_info", expectedContextVersion: f.ctx() });
+    expect(() => f.act({ type: "set_bluffs", bluffs: [free[1], free[2], free[3]] })).toThrow("已经发出");
+  });
+  it("shows them to Minions only after the Demon shares, and lets the evil team claim one each", () => {
+    const f = fixture();
+    f.act({ type: "send_evil_info", expectedContextVersion: f.ctx() });
+    const [b1, b2] = f.view().storyteller!.setup.bluffs;
+    const demon = f.players[5],
+      poisoner = f.players[6],
+      scarlet = f.players[8],
+      good = f.players[0];
+    expect(f.view(demon).evilBluffs!.roles).toHaveLength(3);
+    expect(f.view(poisoner).evilBluffs!.roles).toEqual([]);
+    expect(f.view(good).evilBluffs).toBeUndefined();
+    expect(() => f.act({ type: "claim_bluff", roleId: b1 }, poisoner)).toThrow("还没有分享");
+    expect(() => f.act({ type: "share_bluffs" }, poisoner)).toThrow("只有恶魔");
+    expect(() => f.act({ type: "claim_bluff", roleId: b1 }, good)).toThrow("邪恶");
+    f.act({ type: "claim_bluff", roleId: b1 }, demon);
+    f.act({ type: "share_bluffs" }, demon);
+    expect(f.view(poisoner).evilBluffs!.roles).toHaveLength(3);
+    expect(f.view(poisoner).messages.some((m) => m.to === "evil" && m.content.startsWith("三个假身份"))).toBe(true);
+    expect(() => f.act({ type: "claim_bluff", roleId: b1 }, poisoner)).toThrow("已被");
+    expect(() => f.act({ type: "claim_bluff", roleId: "imp" }, poisoner)).toThrow("三个假身份之一");
+    f.act({ type: "claim_bluff", roleId: b2 }, poisoner);
+    f.act({ type: "claim_bluff", roleId: null }, demon);
+    f.act({ type: "claim_bluff", roleId: b1 }, scarlet);
+    expect(f.view(scarlet).evilBluffs!.claims).toEqual({ [f.ids[6]]: b2, [f.ids[8]]: b1 });
+    expect(f.view().storyteller!.bluffClaims).toEqual({ [f.ids[6]]: b2, [f.ids[8]]: b1 });
+  });
+});
+
+describe("the Scarlet Woman needs five alive", () => {
+  it("does not inherit through her own ability when the Demon is executed with four alive", () => {
+    const f = fixture();
+    f.night2();
+    [1, 2, 3, 4, 5, 7, 8, 10].forEach((n) => f.death(n));
+    f.act({ type: "next_phase" });
+    f.execute(6);
+    const notice = f.view().storyteller!.notices.find((n) => n.kind === "demon")!;
+    expect(notice.text).not.toContain("猩红女郎");
+    expect(notice.candidates).toEqual([]);
+  });
+  it("can still be chosen by a self-killing Imp, as any Minion can", () => {
+    const f = fixture();
+    f.night2();
+    [1, 2, 3, 4, 5, 7, 8, 10].forEach((n) => f.death(n));
+    f.apply(f.action(6, 6, "kill"), "kill");
+    const notice = f.view().storyteller!.notices.find((n) => n.kind === "demon")!;
+    expect(notice.text).toContain("自杀");
+    expect(notice.candidates).toEqual([f.ids[8]]);
+  });
+});
+
+describe("telling the evil team in person", () => {
+  it("records what was told and still opens the evil channel and the bluff board", () => {
+    const f = fixture();
+    const demon = f.players[5];
+    const before = f.view(demon).messages.length;
+    f.act({ type: "send_evil_info", offline: true, expectedContextVersion: f.ctx() });
+    expect(f.view().storyteller!.evilInfoSent).toBe(true);
+    expect(f.view(demon).messages).toHaveLength(before);
+    expect(f.view(demon).evilEnabled).toBe(true);
+    expect(f.view(demon).evilBluffs!.roles).toEqual(f.view().storyteller!.setup.bluffs);
+  });
+});
+
+describe("the storyteller enters or changes a player's targets", () => {
+  it("binds the night's effect to the storyteller's numbers", () => {
+    const f = fixture();
+    f.night2();
+    f.act({ type: "request_action", seatId: f.ids[7], prompt: "保护", targetCount: 1, choiceKind: "protect" });
+    const a = f.view().actions.at(-1)!;
+    expect(() => f.act({ type: "set_action_targets", actionId: a.id, targets: [f.ids[7]], expectedVersion: 0 })).toThrow("自己");
+    f.act({ type: "set_action_targets", actionId: a.id, targets: [f.ids[1]], expectedVersion: 0 });
+    expect(f.view().actions.at(-1)).toMatchObject({ status: "SUBMITTED", targets: [f.ids[1]], selectionVersion: 1 });
+    f.act({ type: "set_action_targets", actionId: a.id, targets: [f.ids[3]], expectedVersion: 1 });
+    f.apply(a.id, "protect");
+    expect(f.view().storyteller!.conditions[f.ids[3]]?.protected).toBe(true);
+    expect(f.view().storyteller!.conditions[f.ids[1]]?.protected ?? false).toBe(false);
+    expect(() => f.act({ type: "set_action_targets", actionId: a.id, targets: [f.ids[2]], expectedVersion: 2 }, f.players[0])).toThrow("说书人");
+  });
+});
+
+describe("a claimed role is only a note", () => {
+  it("records what a player claims without giving them that ability", () => {
+    const f = fixture();
+    f.night2();
+    f.act({ type: "set_claim", seatId: f.ids[0], roleId: "fortuneteller" });
+    expect(f.view().storyteller!.claims[f.ids[0]]).toBe("fortuneteller");
+    f.act({ type: "generate_night_plan", ...f.plan() });
+    const steps = f.view().storyteller!.nightPlan.filter((i) => i.roleId === "fortuneteller");
+    expect(steps.map((i) => i.seatId)).toEqual([f.ids[3]]);
+    expect(f.view(f.players[0])).not.toHaveProperty("storyteller");
+    f.act({ type: "set_claim", seatId: f.ids[0], roleId: null });
+    expect(f.view().storyteller!.claims[f.ids[0]]).toBeUndefined();
+  });
+});
+
+describe("changing a role at night", () => {
+  it("retires the old role's step and adds the new one in night order", () => {
+    const f = fixture();
+    f.night2();
+    f.act({ type: "generate_night_plan", ...f.plan() });
+    const steps = () => f.view().storyteller!.nightPlan.filter((i) => i.seatId === f.ids[2]);
+    expect(steps().map((i) => [i.roleId, i.retiredReason ?? ""])).toEqual([["empath", ""]]);
+    f.change(3, { actualRoleId: "monk", perceivedRoleId: "monk" });
+    expect(steps().map((i) => [i.roleId, i.retiredReason ?? ""])).toEqual([
+      ["monk", ""],
+      ["empath", "身份已改为僧侣"],
+    ]);
+    const order = f.view().storyteller!.nightPlan.filter((i) => !i.retiredReason).map((i) => i.roleId);
+    expect(order.indexOf("monk")).toBeLessThan(order.indexOf("imp"));
+  });
+});
+
+describe("a player's good/evil reads", () => {
+  it("are kept on the server for that player only", () => {
+    const f = fixture();
+    f.act({ type: "set_verdict", target: f.ids[3], verdict: "evil" }, f.players[0]);
+    expect(f.view(f.players[0]).self!.verdicts).toEqual({ [f.ids[3]]: "evil" });
+    expect(f.view(f.players[1]).self!.verdicts).toEqual({});
+    expect(JSON.stringify(f.view().storyteller)).not.toContain('"evil"}');
+    expect(() => f.act({ type: "set_verdict", target: f.ids[3], verdict: "good" })).toThrow("仅限玩家");
+    f.act({ type: "set_verdict", target: f.ids[3], verdict: null }, f.players[0]);
+    expect(f.view(f.players[0]).self!.verdicts).toEqual({});
   });
 });
